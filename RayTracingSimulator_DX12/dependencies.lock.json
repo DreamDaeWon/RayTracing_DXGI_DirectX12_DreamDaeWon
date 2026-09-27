@@ -1,0 +1,16 @@
+{
+  "imgui": {
+    "url": "https://github.com/ocornut/imgui.git",
+    "branch": "docking",
+    "commit": "3bae66c735670619baf51391eba7f3d90a25d125"
+  },
+  "dlss": {
+    "url": "https://github.com/NVIDIA/DLSS.git",
+    "commit": "374959484e79a640feaba44c93ac8cfb0a03f5b5"
+  },
+  "imguizmo": {
+    "url": "https://github.com/CedricGuillemet/ImGuizmo.git",
+    "branch": "master",
+    "commit": "18cef5e031d8c6973d80284c67f60549fafd78c1"
+  }
+}
