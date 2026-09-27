@@ -1,0 +1,413 @@
+#include "pch.h"
+#include "MoonStone.h"
+#include "GameInstance.h"
+#include "AirPlane.h"
+#include "State.h"
+#include "Player.h"
+#include "Item.h"
+
+CMoonStone::CMoonStone(LPDIRECT3DDEVICE9 pGraphic_Device) :
+	CLandObject(pGraphic_Device)
+{
+}
+
+CMoonStone::CMoonStone(const CMoonStone& rhs) :
+	CLandObject(rhs)
+{
+}
+
+HRESULT CMoonStone::Initialize_Prototype()
+{
+	if (FAILED(__super::Initialize_Prototype()))
+	{
+		MSG_BOX(TEXT("Failed to Initialize_Prototype : __super,CMoonStone"));
+		return E_FAIL;
+	}
+
+	return S_OK;
+}
+
+HRESULT CMoonStone::Initialize(void* pArg)
+{
+
+	if (pArg != nullptr)
+	{
+		LANDOBJECT_DESC* pLandObjectDesc = (LANDOBJECT_DESC*)pArg;
+		pLandObjectDesc->fSpeedPerSec = 1.f;
+		pLandObjectDesc->fRotationPerSec = 1.f;
+
+		MOON_STONE_DESC* pMoonStone = (MOON_STONE_DESC*)pArg;
+		m_fGoSpeed = pMoonStone->m_fSpeed;
+		m_fScale = pMoonStone->m_fScale;
+		m_vMoonStonePos = pMoonStone->vMoonPos;
+		m_fHp = pMoonStone->fHp;
+	}
+
+	if (FAILED(__super::Initialize(pArg)))
+	{
+
+		MSG_BOX(TEXT("Failed to Initialize : __super,CMoonStone"));
+		return E_FAIL;
+	}
+
+	if (FAILED(Add_Components()))
+	{
+		MSG_BOX(TEXT("Failed to Add_Components : __super,CMoonStone"));
+		return E_FAIL;
+	}
+
+	m_vStartPos.x = m_vStartPos.x - m_fScale;
+
+	//m_pTransform->Set_State(CTransform::STATE_POSITION, _float3((_float)(rand() % (_int)m_vStartPos.x) + 8.f + m_fScale, 0.f, m_vStartPos.z));
+	m_pTransform->Set_State(CTransform::STATE_POSITION, m_vMoonStonePos);
+	m_pTransform->Set_State(CTransform::STATE_LOOK, _float3(0.f, 0.f, -1.f));
+	m_pTransform->Set_State(CTransform::STATE_RIGHT, _float3(-1.f, 0.f, 0.f));
+	m_pTransform->Set_State(CTransform::STATE_UP, _float3(0.f, 1.f, 0.f));
+
+	//m_pCollider_Com->Set_Scale(_float3(m_fScale, m_fScale, m_fScale));
+	//m_pCollider_Com->Set_Range(m_fScale);
+	m_pTransform->Set_Scale(_float3(m_fScale, m_fScale, m_fScale));
+
+	
+	dynamic_cast<CCollider_Rect*>(m_pCollider_Com[COLLIDER_RECT])->Set_Scale(_float3(m_fScale * 2.f, m_fScale * 2.f,1.f));
+	dynamic_cast<CCollider_Sphere*>(m_pCollider_Com[COLLIDER_SPHERE])->Set_Range(m_fScale * 0.5f);
+	Set_Life_Time();
+
+	return S_OK;
+}
+
+_uint CMoonStone::Tick(_float fTimeDelta)
+{
+	//m_pCollider_Com->Update_Collider_Info(*m_pTransform->Get_WorldMatrix());
+	////if (m_pGameInstance->Key_Pressing('K'))
+	//{
+	//	_float3 vRayDir, vRayPos;
+	//	m_pGameInstance->Transform_PickingToLocalSpace(m_pTransform, &vRayDir, &vRayPos); //몬스터 로컬에서 마우스 레이포즈와 디렉션을 가져옴.
+	//	if (true == m_pGameInstance->Collision_Rect_Ray(m_pCollider_Com, m_pTransform, vRayDir, vRayPos)) //콜라이더의 점을 몬스터의 로컬로 가져가서 계산
+	//		int a = 1;//레이 필요
+	//}
+
+	//m_pTransform->(m_fGoSpeed * fTimeDelta);
+	if (m_bDead)
+	{
+		m_pUI_Damage->Set_RealDead();
+		return OBJECT_DEAD;
+	}
+		
+
+	if (0.f <= m_fLifeTime)
+		m_fLifeTime -= fTimeDelta;
+
+	m_pTransform->Set_State(CTransform::STATE_POSITION,
+		_float3(m_pTransform->Get_State(CTransform::STATE_POSITION).x + (m_vBossLook.x * m_fGoSpeed * fTimeDelta),
+			m_pTransform->Get_State(CTransform::STATE_POSITION).y,
+			m_pTransform->Get_State(CTransform::STATE_POSITION).z + m_vBossLook.z * m_fGoSpeed * fTimeDelta));
+
+
+	m_pTransform->Turn(m_pTransform->Get_State(CTransform::STATE_UP), m_fGoSpeed * fTimeDelta);
+	//__super::SetUp_OnTerrain(0.0f);
+
+	__super::Tick(fTimeDelta);
+
+	m_pUI_Damage->Update_Position(Return_ViewPort_Pos(), Get_ViewZ());
+
+	m_pCollider_Com[COLLIDER_RECT]->Update_Collider_Info(*m_pTransform->Get_WorldMatrix());
+	m_pCollider_Com[COLLIDER_SPHERE]->Update_Collider_Info(*m_pTransform->Get_WorldMatrix());
+	Collider_Billboarding();
+
+	return OBJECT_NOTHING;
+}
+
+void CMoonStone::Late_Tick(_float fTimeDelta)
+{
+	if (0.f > m_fLifeTime)
+		Set_Dead();
+
+	if (m_bDead)
+		return;
+
+	__super::Late_Tick(fTimeDelta);
+
+	//SetUp_BillBoard();
+	//Look_Camera_Fixed_Y_Axis();
+	//Chase_Player(fTimeDelta);
+	//Collision_Box();
+
+	Collision_Bullet(fTimeDelta);
+
+	m_pGameInstance->Add_RenderObject(CRenderer::RENDER_NONBLEND, this);
+}
+
+HRESULT CMoonStone::Render()
+{
+	//if (FAILED(__super::Render()))
+	//{
+	//	MSG_BOX(TEXT("Failed to Render : __super,CPlayer"));
+	//	return E_FAIL;
+	//}
+
+	if (FAILED(m_pTransform->Bind_WorldMatrix()))
+	{
+		MSG_BOX(TEXT("Failed to Bind_WorldMatrix : Render"));
+		return E_FAIL;
+	}
+	if (FAILED(m_pTextureCom->Bind_Texture(0, 0)))
+	{
+		MSG_BOX(TEXT("Failed to Bind_Texture : Render"));
+		return E_FAIL;
+	}
+	//m_pGraphic_Device->SetRenderState(D3DRS_FILLMODE, D3DFILL_WIREFRAME);
+	if (FAILED(Set_RenderState()))
+	{
+		MSG_BOX(TEXT("Failed to Set_RenderState : Render"));
+		return E_FAIL;
+	}
+	if (FAILED(m_pVIBuffer_Com->Render()))
+	{
+		MSG_BOX(TEXT("Failed to Render : Render"));
+		return E_FAIL;
+	}
+
+	if (FAILED(Reset_RenderState()))
+	{
+		MSG_BOX(TEXT("Failed to Reset_RenderState : Render"));
+		return E_FAIL;
+	}
+
+
+	return S_OK;
+}
+
+void CMoonStone::Return_Look_Position(_float3* pvLook, _float3* pvPosition)
+{
+	*pvLook = m_pTransform->Get_State(CTransform::STATE_LOOK);
+	*pvPosition = m_pTransform->Get_State(CTransform::STATE_POSITION);
+}
+
+_float3 CMoonStone::Return_ViewPort_Pos()
+{
+	_float3 vPosition = m_pTransform->Get_State(CTransform::STATE_POSITION);
+
+	_float4x4 ViewMatrix, ProjectionMatrix;
+
+	m_pGraphic_Device->GetTransform(D3DTS_VIEW, &ViewMatrix);
+	m_pGraphic_Device->GetTransform(D3DTS_PROJECTION, &ProjectionMatrix);
+
+	vPosition = *D3DXVec3TransformCoord(&vPosition, &vPosition, &ViewMatrix);
+	vPosition = *D3DXVec3TransformCoord(&vPosition, &vPosition, &ProjectionMatrix);
+
+	vPosition.x = vPosition.x * g_iWinSizeX * 0.5f + g_iWinSizeX * 0.5f;
+	vPosition.y = vPosition.y * g_iWinSizeY * 0.5f + g_iWinSizeY * 0.5f;
+
+	return vPosition;
+}
+
+HRESULT CMoonStone::Add_Components()
+{	/* For.Com_VIBuffer */
+	if (FAILED(__super::Add_Component(LEVEL_1945, TEXT("Prototype_Component_VIBuffer_Sphere"), TEXT("Com_VIBuffer"), reinterpret_cast<CComponent**>(&m_pVIBuffer_Com))))
+	{
+		MSG_BOX(TEXT("Failed to Prototype_Component_VIBuffer_Sphere : Add_Components"));
+		return E_FAIL;
+	}
+
+	/* For.Com_Texture */
+	//if (FAILED(__super::Add_Component(LEVEL_TUTORIAL, TEXT("Prototype_Component_Texture_PlayerBack"), TEXT("Com_Texture"), reinterpret_cast<CComponent**>(&m_pTextureCom))))
+	//{
+	//	MSG_BOX(TEXT("Failed to Prototype_Component_Texture_PlayerBack : Add_Components"));
+	//	return E_FAIL;
+	//}
+	/* For.Com_Texture */
+	if (FAILED(__super::Add_Component(g_eLevel, TEXT("Prototype_Component_Texture_MoonStone"), TEXT("Com_Texture"), reinterpret_cast<CComponent**>(&m_pTextureCom))))
+	{
+		MSG_BOX(TEXT("Failed to Prototype_Component_Texture_MoonStone : Add_Components"));
+		return E_FAIL;
+	}
+
+	/* For.Com_Collider */
+	if (FAILED(__super::Add_Component(LEVEL_STATIC, TEXT("Prototype_Component_Collider_Rect"), TEXT("Com_Collider_Rect"), reinterpret_cast<CComponent**>(&m_pCollider_Com[COLLIDER_RECT]))))
+	{
+		MSG_BOX(TEXT("Failed to Prototype_Component_Collider_Rect : Add_Components"));
+		return E_FAIL;
+	}
+
+	if (FAILED(__super::Add_Component(LEVEL_STATIC, TEXT("Prototype_Component_Collider_Sphere"), TEXT("Com_Collider_Sphere"), reinterpret_cast<CComponent**>(&m_pCollider_Com[COLLIDER_SPHERE]))))
+	{
+		MSG_BOX(TEXT("Failed to Prototype_Component_Collider_Sphere : Add_Components"));
+		return E_FAIL;
+	}
+
+	/* For.Com_State */
+	CState::STATE_DESC StateDest = {};
+	StateDest.fCP = 1.f;
+	StateDest.fMaxHp = 50.f * m_fHp;
+	if (FAILED(__super::Add_Component(LEVEL_STATIC, TEXT("Prototype_Component_State"), TEXT("Com_State"), reinterpret_cast<CComponent**>(&m_pState_Com), &StateDest)))
+	{
+		MSG_BOX(TEXT("Failed to Prototype_Component_State : Add_Components"));
+		return E_FAIL;
+	}
+
+	return S_OK;
+}
+
+HRESULT CMoonStone::Set_RenderState()
+{
+	/*if (FAILED(m_pGraphic_Device->SetSamplerState(0,D3DSAMP_MINFILTER, D3DTEXF_POINT)))
+	{
+		MSG_BOX(TEXT("Failed to SetSamplerState : D3DSAMP_MINFILTER"));
+		return E_FAIL;
+	}
+	if (FAILED(m_pGraphic_Device->SetSamplerState(0, D3DSAMP_MAGFILTER, D3DTEXF_POINT)))
+	{
+		MSG_BOX(TEXT("Failed to SetSamplerState : D3DSAMP_MAGFILTER"));
+		return E_FAIL;
+	}
+	if (FAILED(m_pGraphic_Device->SetSamplerState(0, D3DSAMP_MIPFILTER, D3DTEXF_POINT)))
+	{
+		MSG_BOX(TEXT("Failed to SetSamplerState : D3DSAMP_MIPFILTER"));
+		return E_FAIL;
+	}*/
+	m_pGraphic_Device->SetRenderState(D3DRS_CULLMODE, D3DCULL_NONE);
+
+	if (FAILED(m_pGraphic_Device->SetRenderState(D3DRS_ALPHATESTENABLE, TRUE)))
+	{
+		MSG_BOX(TEXT("Failed to SetRenderState : D3DRS_ALPHATESTENABLE"));
+		return E_FAIL;
+	}
+	if (FAILED(m_pGraphic_Device->SetRenderState(D3DRS_ALPHAREF, 128)))
+	{
+		MSG_BOX(TEXT("Failed to SetRenderState : D3DRS_ALPHAREF"));
+		return E_FAIL;
+	}
+	if (FAILED(m_pGraphic_Device->SetRenderState(D3DRS_ALPHAFUNC, D3DCMP_GREATER)))
+	{
+		MSG_BOX(TEXT("Failed to SetRenderState : D3DRS_ALPHAFUNC"));
+		return E_FAIL;
+	}
+	return S_OK;
+}
+
+HRESULT CMoonStone::Reset_RenderState()
+{
+
+	m_pGraphic_Device->SetRenderState(D3DRS_CULLMODE, D3DCULL_CCW);
+	if (FAILED(m_pGraphic_Device->SetRenderState(D3DRS_ALPHATESTENABLE, FALSE)))
+	{
+		MSG_BOX(TEXT("Failed to SetRenderState : D3DRS_ALPHATESTENABLE"));
+		return E_FAIL;
+	}
+
+	/*if (FAILED(m_pGraphic_Device->SetSamplerState(0, D3DSAMP_MINFILTER, D3DTEXF_LINEAR)))
+	{
+		MSG_BOX(TEXT("Failed to SetSamplerState : D3DSAMP_MINFILTER"));
+		return E_FAIL;
+	}
+	if (FAILED(m_pGraphic_Device->SetSamplerState(0, D3DSAMP_MAGFILTER, D3DTEXF_LINEAR)))
+	{
+		MSG_BOX(TEXT("Failed to SetSamplerState : D3DSAMP_MAGFILTER"));
+		return E_FAIL;
+	}
+	if (FAILED(m_pGraphic_Device->SetSamplerState(0, D3DSAMP_MIPFILTER, D3DTEXF_LINEAR)))
+	{
+		MSG_BOX(TEXT("Failed to SetSamplerState : D3DSAMP_MIPFILTER"));
+		return E_FAIL;
+	}*/
+	return S_OK;
+}
+
+void CMoonStone::Collision_Bullet(_float fTimeDelta)
+{
+	CAirPlane* pPlayer = dynamic_cast<CAirPlane*>(m_pGameInstance->Get_Object(LEVEL_1945, TEXT("Layer_AirPlane")));
+	//CWeapon* pWeapons[3] = { pPlayer->Get_Weapon(0),pPlayer->Get_Weapon(1) ,pPlayer->Get_Weapon(2) };
+
+	
+	if (nullptr == pPlayer)
+		return;
+	_float fTotalDamage = pPlayer->Collision_Bullet_Rect(dynamic_cast<CCollider_Rect*>(m_pCollider_Com[COLLIDER_RECT]), fTimeDelta);
+	if (0.f < fTotalDamage)
+		m_pUI_Damage->Hit_Damage(fTotalDamage);
+	if (OBJECT_DEAD == m_pState_Com->Set_Hp(-fTotalDamage))
+	{
+		Drop_Item();
+		Set_Dead();
+		
+	}
+	
+}
+
+void CMoonStone::Collider_Billboarding()
+{
+	CTransform* pCameraTransformCom = dynamic_cast<CTransform*>(m_pGameInstance->Get_Component(LEVEL_1945, TEXT("Layer_Camera"), g_strTransformTag));
+
+	if (nullptr == pCameraTransformCom)
+	{
+		MSG_BOX(TEXT("nullptr == pCameraTransformCom : Collider_Billboarding()"));
+		return;
+	}
+
+	const _float4x4 pCameraWorldMatrix = *pCameraTransformCom->Get_WorldMatrix();
+
+
+	_float3 vScale = m_pCollider_Com[COLLIDER_RECT]->Get_Scale();
+
+	m_pCollider_Com[COLLIDER_RECT]->Set_State(CCollider::STATE_RIGHT, *D3DXVec3Normalize((_float3*)&pCameraWorldMatrix.m[CTransform::STATE_RIGHT][0], (_float3*)&pCameraWorldMatrix.m[CTransform::STATE_RIGHT][0]) * vScale.x);
+	//m_pTransform->Set_State(CTransform::STATE_UP, *D3DXVec3Normalize((_float3*)&pCameraWorldMatrix.m[CTransform::STATE_UP][0], (_float3*)&pCameraWorldMatrix.m[CTransform::STATE_UP][0]) * vScale.y);
+	m_pCollider_Com[COLLIDER_RECT]->Set_State(CCollider::STATE_LOOK, *D3DXVec3Normalize((_float3*)&pCameraWorldMatrix.m[CTransform::STATE_LOOK][0], (_float3*)&pCameraWorldMatrix.m[CTransform::STATE_LOOK][0]) * vScale.z);
+
+	/*m_pTransform->Set_State(CTransform::STATE_RIGHT, *(_float3*)&pCameraWorldMatrix.m[CTransform::STATE_RIGHT][0]);
+	m_pTransform->Set_State(CTransform::STATE_LOOK, *(_float3*)&pCameraWorldMatrix.m[CTransform::STATE_LOOK][0]);*/
+}
+
+HRESULT CMoonStone::Drop_Item()
+{
+	CItem::ITEM_DESC ItemDesc = {};
+	ItemDesc.vPos = m_pTransform->Get_State(CTransform::STATE_POSITION);
+	ItemDesc.fRotationPerSec = D3DXToRadian(90.f);
+
+	if (FAILED(m_pGameInstance->Add_Clone(LEVEL_1945, TEXT("Layer_Item"), TEXT("Prototype_GameObject_Item_1945"), &ItemDesc)))
+	{
+		MSG_BOX(TEXT("Failed to Ready_Layer_Item_1945 : CLevel_GamePlay"));
+		return E_FAIL;
+	}
+
+	return S_OK;
+}
+
+CMoonStone* CMoonStone::Create(LPDIRECT3DDEVICE9 pGraphic_Device)
+{
+	CMoonStone* pInstance = new CMoonStone(pGraphic_Device);
+	if (FAILED(pInstance->Initialize_Prototype()))
+	{
+		MSG_BOX(TEXT("Faild to Created : CMoonStone"));
+
+		Safe_Release(pInstance);
+	}
+
+	return pInstance;
+}
+
+CGameObject* CMoonStone::Clone(void* pArg)
+{
+	CMoonStone* pInstance = new CMoonStone(*this);
+	if (FAILED(pInstance->Initialize(pArg)))
+	{
+		MSG_BOX(TEXT("Faild to Cloned : CMoonStone"));
+
+		Safe_Release(pInstance);
+	}
+
+	return pInstance;
+}
+
+void CMoonStone::Free()
+{
+	Safe_Release(m_pVIBuffer_Com);
+	Safe_Release(m_pTextureCom);
+	Safe_Release(m_pState_Com);
+
+	//콜라이더 실험 BEGIN
+	Safe_Release(m_pCollider_Com[COLLIDER_RECT]);
+	Safe_Release(m_pCollider_Com[COLLIDER_SPHERE]);
+	//콜라이더 실험 END.
+
+	__super::Free();
+}

@@ -1,0 +1,218 @@
+#include "Renderer.h"
+#include "GameObject.h"
+#include "BlendObject.h"
+
+CRenderer::CRenderer(LPDIRECT3DDEVICE9 pGraphic_Device) :
+	m_pGraphic_Device(pGraphic_Device)
+{
+	Safe_AddRef(pGraphic_Device);
+}
+
+HRESULT CRenderer::Initialize()
+{
+	return S_OK;
+}
+
+HRESULT CRenderer::Add_RenderObject(RENDER_GROUP eRenderGroup, CGameObject* pRenderObject)
+{
+	if (eRenderGroup >= RENDER_END)
+	{
+		MSG_BOX(TEXT("ERR : Index Range Over, Add_RenderObject"));
+		return E_FAIL;
+	}
+	if(nullptr == pRenderObject)
+	{
+		MSG_BOX(TEXT("ERR : nullptr == pRenderObject, Add_RenderObject"));
+		return E_FAIL;
+	}
+
+	m_RenderObjectList[eRenderGroup].push_back(pRenderObject);
+	Safe_AddRef(pRenderObject);
+
+	return S_OK;
+}
+
+HRESULT CRenderer::Render()
+{
+	if (FAILED(Render_Priority()))
+	{
+		MSG_BOX(TEXT("Failed to Render_Priority,  CRenderer::Render()"));
+		return E_FAIL;
+	}
+	if (FAILED(Render_NonBlend()))
+	{
+		MSG_BOX(TEXT("Failed to Render_NonBlend,  CRenderer::Render()"));
+		return E_FAIL;
+	}
+	if (FAILED(Render_Blend()))
+	{
+		MSG_BOX(TEXT("Failed to Render_Blend,  CRenderer::Render()"));
+		return E_FAIL;
+	}
+	if (FAILED(Render_UI()))
+	{
+		MSG_BOX(TEXT("Failed to Render_UI,  CRenderer::Render()"));
+		return E_FAIL;
+	}
+
+	//Render_Object_List_Clear();
+
+	return S_OK;
+}
+
+HRESULT CRenderer::Render_Priority()
+{
+	for (auto& pRenderObject : m_RenderObjectList[RENDER_PRIORITY])
+	{
+		if(nullptr == pRenderObject)
+			continue;
+		if (FAILED(pRenderObject->Render()))
+		{
+			MSG_BOX(TEXT("Failed to Render,  CRenderer::Render()"));
+			return E_FAIL;
+		}
+		Safe_Release(pRenderObject);
+	}
+	m_RenderObjectList[RENDER_PRIORITY].clear();
+	return S_OK;
+}
+
+HRESULT CRenderer::Render_NonBlend()
+{
+	for (auto& pRenderObject : m_RenderObjectList[RENDER_NONBLEND])
+	{	
+		if(nullptr == pRenderObject)
+			continue;
+		if (FAILED(pRenderObject->Render()))
+		{
+			MSG_BOX(TEXT("Failed to Render,  CRenderer::Render()"));
+			return E_FAIL;
+		}
+		Safe_Release(pRenderObject);
+	}
+	m_RenderObjectList[RENDER_NONBLEND].clear();
+	return S_OK;
+}
+
+HRESULT CRenderer::Render_Blend()
+{
+	if (FAILED(Set_RenderState_Blend()))
+	{
+		MSG_BOX(TEXT("Failed to Set_RenderState_Blend"));
+		return E_FAIL;
+	}
+	
+	for (auto& pRenderObject : m_RenderObjectList[RENDER_BLEND])
+	{		
+		if(nullptr == pRenderObject)
+			continue;
+		if (FAILED(pRenderObject->Render()))
+		{
+			if (FAILED(Reset_RenderState_Blend()))
+			{
+				MSG_BOX(TEXT("Failed to Reset_RenderState_Blend"));
+				return E_FAIL;
+			}
+			MSG_BOX(TEXT("Failed to Render,  CRenderer::Render()"));
+			return E_FAIL;
+		}
+		Safe_Release(pRenderObject);
+	}
+	if (FAILED(Reset_RenderState_Blend()))
+	{
+		MSG_BOX(TEXT("Failed to Reset_RenderState_Blend"));
+		return E_FAIL;
+	}
+	m_RenderObjectList[RENDER_BLEND].clear();
+	return S_OK;
+}
+
+HRESULT CRenderer::Render_UI()
+{
+	for (auto& pRenderObject : m_RenderObjectList[RENDER_UI])
+	{
+		if(nullptr == pRenderObject)
+			continue;
+		if (FAILED(pRenderObject->Render()))
+		{
+			MSG_BOX(TEXT("Failed to Render,  CRenderer::Render()"));
+			return E_FAIL;
+		}
+		Safe_Release(pRenderObject);
+	}
+	m_RenderObjectList[RENDER_UI].clear();
+	return S_OK;
+}
+
+void CRenderer::Render_Object_List_Clear()
+{
+	for (size_t i = 0; RENDER_END > i; ++i)
+	{
+		for (auto& pRenderObject : m_RenderObjectList[i])
+			Safe_Release(pRenderObject);
+		m_RenderObjectList[i].clear();
+	}
+	return ;
+}
+
+HRESULT CRenderer::Set_RenderState_Blend()
+{
+	Alpha_Sorting();
+	/*m_RenderObjectList[RENDER_BLEND].sort([](CGameObject* pSour, CGameObject* pDest)->_bool
+		{
+			return ((CBlendObject*)pSour)->Get_ViewZ() > ((CBlendObject*)pDest)->Get_ViewZ();
+		});
+	m_pGraphic_Device->SetRenderState(D3DRS_CULLMODE, D3DCULL_NONE);*/
+	return S_OK;
+}
+
+HRESULT CRenderer::Reset_RenderState_Blend()
+{
+	m_pGraphic_Device->SetRenderState(D3DRS_CULLMODE, D3DCULL_CCW);
+	return S_OK;
+}
+
+void CRenderer::Alpha_Sorting()	
+{
+	_float4x4 ViewMatrix;
+	m_pGraphic_Device->GetTransform(D3DTS_VIEW, &ViewMatrix);
+	//리스트
+	m_RenderObjectList[RENDER_BLEND].sort([&](CGameObject* src, CGameObject* dest)->_bool{
+		//z값으로 소팅한다.
+		CTransform* pSrcTranform = dynamic_cast<CTransform*>(src->Get_Component(g_strTransformTag));
+		CTransform* pDstTranform = dynamic_cast<CTransform*>(dest->Get_Component(g_strTransformTag));
+
+		_float3 vSrcPos(0.f, 0.f, 0.f), vDestPos(0.f,0.f,0.f);
+		vSrcPos = pSrcTranform->Get_State(CTransform::STATE_POSITION);
+		vDestPos = pDstTranform->Get_State(CTransform::STATE_POSITION);
+
+		D3DXVec3TransformCoord(&vSrcPos, &vSrcPos, &ViewMatrix);
+		D3DXVec3TransformCoord(&vDestPos, &vDestPos, &ViewMatrix);
+
+		if (vSrcPos.z > vDestPos.z)
+			return true;
+		else
+			return false;
+		});
+	int a = 0;
+
+}
+
+CRenderer* CRenderer::Create(LPDIRECT3DDEVICE9 pGraphic_Device)
+{
+	CRenderer* pInstance = new CRenderer(pGraphic_Device);
+	if (FAILED(pInstance->Initialize()))
+	{
+		MSG_BOX(TEXT("Failed to Created : CRenderer"));
+
+		Safe_Release(pInstance);
+	}
+
+	return pInstance;
+}
+
+void CRenderer::Free()
+{
+	Render_Object_List_Clear();
+	Safe_Release(m_pGraphic_Device);
+}

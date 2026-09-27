@@ -1,0 +1,1525 @@
+#include "pch.h"
+#include "Player.h"
+#include "GameInstance.h"
+
+#include "VIBuffer_Terrain.h"
+#include "State.h"
+#include "Bullet.h"
+#include "Effect_Splat.h"
+#include "Effect_Splat_Orange.h"
+#include "Camera_Player_DW.h"
+#include "Effect_Splat_Blue.h"
+#include "Splat_Default.h"
+#include "QAim.h"
+#include "Weapon_Pupa.h"
+#include "Player_Skill.h"
+#include "Roll.h"
+#include "Weapon.h"
+#include "Effect_Player_Move.h"
+#include "Effect_Sparkle.h"
+#include "Item_Weapon.h"
+#include "Monster_Bullet_Base.h" 
+#include "Trigger_Door.h" 
+#include"Level_Loading.h"
+
+CPlayer::CPlayer(LPDIRECT3DDEVICE9 pGraphic_Device) :
+	CLandObject(pGraphic_Device)
+{
+}
+
+CPlayer::CPlayer(const CPlayer& rhs) :
+	CLandObject(rhs)
+{
+}
+
+HRESULT CPlayer::Initialize_Prototype()
+{
+	if (FAILED(__super::Initialize_Prototype()))
+	{
+		MSG_BOX(TEXT("Failed to Initialize_Prototype : __super,CPlayer"));
+		return E_FAIL;
+	}
+
+	return S_OK;
+}
+
+HRESULT CPlayer::Initialize(void* pArg)
+{
+
+	if (FAILED(__super::Initialize(pArg)))
+	{
+		MSG_BOX(TEXT("Failed to Initialize : __super,CPlayer"));
+		return E_FAIL;
+	}
+
+	if (FAILED(Add_Components()))
+	{
+		MSG_BOX(TEXT("Failed to Add_Components : __super,CPlayer"));
+		return E_FAIL;
+	}
+
+	//if()현재 레벨이 게임플레이이면
+	m_pTransform->Set_State(CTransform::STATE_POSITION, _float3(25.1f, 0.f, 7.1f));
+	dynamic_cast<CCollider_Sphere*>(m_pCollider_Com[COLLIDER_SPHERE])->Set_Range(0.1f);
+	m_pCollider_Com[COLLIDER_CUBE_AABB]->Set_Scale(_float3(0.5f, 0.5f, 0.5f));
+	return S_OK;
+}
+
+_uint CPlayer::Tick(_float fTimeDelta)
+{
+
+
+
+	_uint iRand = rand() % 4;
+	_uint iLevelIndex = m_pGameInstance->Get_Level();
+	if (LEVEL_LOADING == iLevelIndex || LEVEL_1945 == iLevelIndex)
+		return OBJECT_NOTHING;
+
+	if (m_bInvincibility) //무적기 먼저 쓰시면
+	{
+		m_fInvincibilityTime += fTimeDelta;
+		m_bHit = false;
+	}
+	else if (m_bHit) //hit무시
+	{
+		
+		m_pGameInstance->StopSound(CSound_Manager::PLAYER); 
+		TCHAR	szBuf[256] = L"";
+		swprintf_s(szBuf, L"gatto_damage_0%d.wav", iRand);
+		m_pGameInstance->PlaySoundW(szBuf, CSound_Manager::PLAYER, 0.4f);
+		m_pStateCom->Set_Hp(-1);
+		if (LEVEL_NORMAL2 == g_eLevel && 20.f < m_pTransform->Get_State(CTransform::STATE_POSITION).z)
+		{
+			Set_Pos(_float3(4.5f, 0.5f, 20.5f));
+			Collider_Update();
+		}
+		m_bInvincibility = true;
+		m_bHit = false;
+		m_fHitTime = 2.f;
+		m_fInvincibilityMaxTime = m_fHitTime;
+	}
+
+
+	if (m_fHitTime > 0.f) //맞았을때 그의 시간은 흐른다.
+		m_fHitTime -= fTimeDelta;
+	else
+		m_fHitTime = 0.f;
+
+	if (m_bInvincibility && m_fInvincibilityTime > m_fInvincibilityMaxTime)
+	{
+		m_fInvincibilityTime = 0.f;
+		m_bInvincibility = false;
+	}
+
+	/*m_pSkillSlot[SPACE_SKILL] = dynamic_cast<CPlayer_Skill*>(m_pGameInstance->Get_Object(LEVEL_TUTORIAL, TEXT("Layer_Skill")));
+	m_pSkillSlot[SHIFT_SKILL] = dynamic_cast<CPlayer_Skill*>(m_pGameInstance->Get_Object(LEVEL_TUTORIAL, TEXT("Layer_Skill"), 1));
+
+	m_pWeaponSlot[THIRD_WEAPON] = dynamic_cast<CWeapon*>(m_pGameInstance->Get_Object(LEVEL_TUTORIAL, TEXT("Layer_Weapon")));*/
+
+	m_pSkillSlot[SPACE_SKILL] = dynamic_cast<CPlayer_Skill*>(m_pGameInstance->Get_Object(LEVEL_STATIC, TEXT("Layer_Skill")));
+	m_pSkillSlot[SHIFT_SKILL] = dynamic_cast<CPlayer_Skill*>(m_pGameInstance->Get_Object(LEVEL_STATIC, TEXT("Layer_Skill"), 1));
+
+	m_pWeaponSlot[THIRD_WEAPON] = dynamic_cast<CWeapon*>(m_pGameInstance->Get_Object(LEVEL_STATIC, TEXT("Layer_Weapon")));
+	m_pWeaponSlot[THIRD_WEAPON]->Set_Activate(true);
+
+	
+
+	if (m_bDead)
+		return OBJECT_DEAD;
+
+	m_fOrthoBodyFrame += 36.f * fTimeDelta * 0.2f;
+	m_fOrthoHeadFrame += 4.f * fTimeDelta;
+	m_fOrthoHandFrame += 13.f * fTimeDelta*0.5f;
+	//m_fOrthoTPSFrame += 16.f * fTimeDelta;
+	
+	for (size_t i = 0; i < SKILL_SLOT_END; i++)
+	{
+		m_pSkillCoolTime[i] += fTimeDelta;
+	}
+	
+	//프레임 뭔가 잘못됌
+
+	//body에 대한 프레임
+	if (m_eCurState == STATE_AIMING && m_fOrthoBodyFrame > 4.f) 
+		m_fOrthoBodyFrame = 0.f;		//에임+정지 상태(0~3)
+	else if (m_eCurState == STATE_AIMING_WALK && m_eWalk==WALK_STRIAGHT&& m_fOrthoBodyFrame > 13.f)
+		m_fOrthoBodyFrame = 4.f;		//에임+앞움직이는 상태(0~3)
+	else if(m_eCurState == STATE_AIMING_WALK&& m_eWalk == WALK_BACK && m_fOrthoBodyFrame>21.f)
+		m_fOrthoBodyFrame = 13.f;		//에임+뒤움직이는 상태(0~3)
+	else if(m_eCurState != STATE_AIMING && m_eCurState != STATE_AIMING_WALK && m_fOrthoBodyFrame > 4.f)
+		m_fOrthoBodyFrame = 0.f; 		//에임한것도 에임하고 움직인 것도 아닌 평상시
+
+
+	//// 머리에 대한 프레임
+	if (m_fOrthoHeadFrame > 4.f)
+		m_fOrthoHeadFrame = 0.f;
+
+	//// 손에 대한 프레임
+	if ((m_eCurState == STATE_AIMING || m_eCurState == STATE_AIMING_WALK))
+	{
+		if (m_eCurAiming == AIMING_NOTHING && m_fOrthoHandFrame > 0.f)
+			m_fOrthoHandFrame = 0.f; //아무것도 하지 않음(0~2)
+		else if (m_eCurAiming == AIMING_SHOOT && m_fOrthoHandFrame > 4.f)
+			m_fOrthoHandFrame = 0.f; //총을 쏜느 중임(0~4)
+		else if (m_eCurAiming == AIMING_GUN_CHANGE && m_fOrthoHandFrame > 12.f)
+			m_fOrthoHandFrame = 5.f; //총을 바꿈
+	}
+	else if (m_fOrthoHandFrame > 3.f)
+		m_fOrthoHandFrame = 0.f;
+
+
+
+	Landing_Terrain();
+	Key_Input(fTimeDelta);
+	m_fTextureDir = Set_Texture_Player_Dir(m_vPlayerLook);//nan이 나오는 경우가 잇는데
+	for (size_t i = 0; i < WEAPON_SLOT_END; i++)
+	{
+		if(nullptr!=m_pWeaponSlot[i])
+			m_pWeaponSlot[i]->Set_PlayerTexture(m_fTextureDir); //받아와서 총이 방향에 따라 다르게 보이도록
+	}
+	Motion_Change(fTimeDelta);
+	//Collision
+	_float4x4 WorldMatrix = *m_pTransform->Get_WorldMatrix();
+	m_pCollider_Com[COLLIDER_RECT]->Update_Collider_Info(WorldMatrix);
+	m_pCollider_Com[COLLIDER_SPHERE]->Update_Collider_Info(WorldMatrix);
+	m_pCollider_Com[COLLIDER_CUBE_AABB]->Update_Collider_Info(WorldMatrix);
+
+	__super::Tick(fTimeDelta);
+
+	return OBJECT_NOTHING;
+}
+
+void CPlayer::Late_Tick(_float fTimeDelta)
+{
+	if (LEVEL_LOADING == m_pGameInstance->Get_Level() || LEVEL_1945 == m_pGameInstance->Get_Level())
+		return;
+
+	__super::Late_Tick(fTimeDelta);
+
+
+	if(m_eCurState != STATE_AIMING && m_eCurState != STATE_AIMING_WALK && m_eCurState != STATE_AIMING_ZOOM)
+	{
+		if (dynamic_cast<CCamera_Player_DW*>(m_pGameInstance->Get_Object(LEVEL_STATIC, TEXT("Layer_Camera_Player")))->Get_CameraTrapLevelUp())
+		{
+			SetUp_BillBoardToUP();
+			m_pGameInstance->Add_RenderObject(CRenderer::RENDER_NONBLEND, this);
+		}
+		else
+		{
+			SetUp_BillBoard();
+			m_pGameInstance->Add_RenderObject(CRenderer::RENDER_NONBLEND, this);
+		}
+		/*SetUp_BillBoard();
+		m_pGameInstance->Add_RenderObject(CRenderer::RENDER_NONBLEND, this);*/
+	}
+	else
+	{
+		//빌보드용
+		SetUp_BilBoardToAiming();
+		m_pGameInstance->Add_RenderObject(CRenderer::RENDER_NONBLEND, this);
+	}
+	//For. collision
+	Collision(fTimeDelta);
+	//Collision_Monster_Bullet(fTimeDelta);
+	//m_pGameInstance->Add_RenderObject(CRenderer::RENDER_NONBLEND, this);
+}
+
+HRESULT CPlayer::Render()
+{
+	if (LEVEL_LOADING == m_pGameInstance->Get_Level() || LEVEL_1945 == m_pGameInstance->Get_Level())
+		return S_OK;
+	if(m_fHitTime >0.f)
+		if ((_uint)(m_fHitTime * 5.f)%2 == 0)
+		{
+			return S_OK;
+		}
+
+
+	if (m_eCurState != STATE_AIMING && m_eCurState != STATE_AIMING_WALK && m_eCurState != STATE_AIMING_ZOOM)
+	{
+		_float3 vRight = m_pTransform->Get_State(CTransform::STATE_RIGHT);
+		_float3 vUp = m_pTransform->Get_State(CTransform::STATE_UP);
+		_float3 vLook = m_pTransform->Get_State(CTransform::STATE_LOOK);
+		_float3 vScale = m_pTransform->Get_Scale();
+
+		if (dynamic_cast<CCamera_Player_DW*>(m_pGameInstance->Get_Object(LEVEL_STATIC, TEXT("Layer_Camera_Player")))->Get_CameraTrapLevelUp())
+		{
+			
+
+			_float4x4 pCameraWorldMatrix = *m_pDWCameraTranformCom->Get_WorldMatrix();
+
+			m_pTransform->Set_State(CTransform::STATE_RIGHT, *D3DXVec3Normalize((_float3*)&pCameraWorldMatrix.m[CTransform::STATE_RIGHT][0], (_float3*)&pCameraWorldMatrix.m[CTransform::STATE_RIGHT][0]) * vScale.x*0.8f);
+			m_pTransform->Set_State(CTransform::STATE_LOOK, *D3DXVec3Normalize((_float3*)&pCameraWorldMatrix.m[CTransform::STATE_LOOK][0], (_float3*)&pCameraWorldMatrix.m[CTransform::STATE_LOOK][0]) * vScale.z * 0.8f);
+			m_pTransform->Set_State(CTransform::STATE_UP, *D3DXVec3Normalize((_float3*)&pCameraWorldMatrix.m[CTransform::STATE_UP][0], (_float3*)&pCameraWorldMatrix.m[CTransform::STATE_UP][0]) * vScale.y * 0.7f);
+
+		}
+
+		if (FAILED(m_pTransform->Bind_WorldMatrix()))
+		{
+			MSG_BOX(TEXT("Failed to Bind_WorldMatrix : Render"));
+			return E_FAIL;
+		}
+		if (FAILED(m_pTextureCom->Bind_Texture(0, (_uint)m_fTextureTotal)))
+		{
+			MSG_BOX(TEXT("Failed to Bind_Texture : Render"));
+			return E_FAIL;
+		}
+		//m_pGraphic_Device->SetRenderState(D3DRS_FILLMODE, D3DFILL_WIREFRAME);
+		if (FAILED(Set_RenderState()))
+		{
+			MSG_BOX(TEXT("Failed to Set_RenderState : Render"));
+			return E_FAIL;
+		}
+		if (FAILED(m_pVIBuffer_Com->Render()))
+		{
+			MSG_BOX(TEXT("Failed to Render : Render"));
+			return E_FAIL;
+		}
+		/*if (FAILED(m_pCollider_Com[COLLIDER_SPHERE]->Render()))
+		{
+			MSG_BOX(TEXT("Failed to Render : Render"));
+			return E_FAIL;
+		}*/
+		if (FAILED(Reset_RenderState()))
+		{
+			MSG_BOX(TEXT("Failed to Reset_RenderState : Render"));
+			return E_FAIL;
+		}
+		m_pTransform->Set_State(CTransform::STATE_RIGHT, vRight);
+		m_pTransform->Set_State(CTransform::STATE_LOOK, vLook);
+		m_pTransform->Set_State(CTransform::STATE_UP, vUp);
+
+
+	}
+	else
+	{
+		_float4x4	tWorldMatrix = *(m_pTransform->Get_WorldMatrix());
+		_float3		vScale = m_pTransform->Get_Scale();
+
+		//빌보드용(빌보드 사용 안할시 주석처리)
+		//Body
+		if (FAILED(Render_Again(1.f, 1.f, 0.f, -0.04f, (_uint)m_fOrthoBodyFrame, m_pTextureTPS_Body)))
+		{
+			MSG_BOX(TEXT("Failed to Bind_Texture : Render"));
+			return E_FAIL;
+		}
+		// Head
+		//리셋
+		m_pTransform->Set_State(CTransform::STATE_RIGHT, *(_float3*)&tWorldMatrix.m[CTransform::STATE_RIGHT][0]);
+		m_pTransform->Set_State(CTransform::STATE_UP, *(_float3*)&tWorldMatrix.m[CTransform::STATE_UP][0]);
+		m_pTransform->Set_State(CTransform::STATE_LOOK, *(_float3*)&tWorldMatrix.m[CTransform::STATE_LOOK][0]);
+		m_pTransform->Set_State(CTransform::STATE_POSITION, *(_float3*)&tWorldMatrix.m[CTransform::STATE_POSITION][0]);
+		m_pTransform->Set_State(CTransform::STATE_POSITION, *(_float3*)&tWorldMatrix.m[CTransform::STATE_POSITION][0]);
+		m_pTransform->Set_Scale(vScale);
+		m_pTransform->Go_Backward(0.001f); // 머리가 body 앞에 있어야 하므로
+		if (FAILED(Render_Again(1.1f, 1.1f, 0.025f, 0.03f, (_uint)m_fOrthoHeadFrame, m_pTextureTPS_Head)))
+		{
+			MSG_BOX(TEXT("Failed to Bind_Texture : Render"));
+			return E_FAIL;
+		}
+
+		// Hand
+
+		//리셋
+		m_pTransform->Set_State(CTransform::STATE_LOOK, *(_float3*)&tWorldMatrix.m[CTransform::STATE_LOOK][0]);
+		m_pTransform->Set_State(CTransform::STATE_UP, *(_float3*)&tWorldMatrix.m[CTransform::STATE_UP][0]);
+		m_pTransform->Set_State(CTransform::STATE_POSITION, *(_float3*)&tWorldMatrix.m[CTransform::STATE_POSITION][0]);
+		m_pTransform->Set_State(CTransform::STATE_RIGHT, *(_float3*)&tWorldMatrix.m[CTransform::STATE_RIGHT][0]);
+		m_pTransform->Set_Scale(vScale);
+		m_pTransform->Go_Backward(0.002f);// 손이 머리 앞에 있어야 하므로
+		if (FAILED(Render_Again(0.3f, 0.3f, 0.045f, -0.04f, (_uint)m_fOrthoHandFrame, m_pTextureTPS_Hand)))
+		{
+			MSG_BOX(TEXT("Failed to Bind_Texture : Render"));
+			return E_FAIL;
+		}
+		if (FAILED(Reset_RenderState()))
+		{
+			MSG_BOX(TEXT("Failed to Reset_RenderState : Render"));
+			return E_FAIL;
+		}
+
+		//리셋
+		m_pTransform->Set_State(CTransform::STATE_LOOK, *(_float3*)&tWorldMatrix.m[CTransform::STATE_LOOK][0]);
+		m_pTransform->Set_State(CTransform::STATE_UP, *(_float3*)&tWorldMatrix.m[CTransform::STATE_UP][0]);
+		m_pTransform->Set_State(CTransform::STATE_POSITION, *(_float3*)&tWorldMatrix.m[CTransform::STATE_POSITION][0]);
+		m_pTransform->Set_State(CTransform::STATE_RIGHT, *(_float3*)&tWorldMatrix.m[CTransform::STATE_RIGHT][0]);
+		m_pTransform->Set_Scale(vScale);
+
+	}
+	
+
+	return S_OK;
+}
+
+void CPlayer::Set_WeaponChange(_uint iWeapon, _uint iExtraBullet, _uint iNowBullet)
+{
+	_uint iTotalSelect = { 0 };
+	// 같은 아이디의 무기였을 때 == 탄창 하나만큼 더줌
+	for (size_t i = 0; i < THIRD_WEAPON; i++)
+	{
+		if (nullptr != m_pWeaponSlot[i] && m_pWeaponSlot[i]->Get_ID() == dynamic_cast<CWeapon*>(m_pGameInstance->Get_Object(LEVEL_STATIC, TEXT("Layer_Weapon"), iWeapon))->Get_ID())
+		{
+			if (iExtraBullet == 0)
+			{
+				m_pWeaponSlot[i]->Plus_ExBullet();
+				m_pWeaponSlot[i]->Plus_GunGauge(10.f);
+			}
+			else 
+			{
+				m_pWeaponSlot[i]->Plus_ExBullet(iExtraBullet + iNowBullet);
+				m_pWeaponSlot[i]->Plus_GunGauge(10.f);
+			}
+			return;
+		}
+	}
+
+	m_pGameInstance->StopSound(CSound_Manager::CHANNEL_WEAPON);
+	m_pGameInstance->PlaySoundW(TEXT("Reload_Analog.wav"), CSound_Manager::CHANNEL_WEAPON, 0.3f);
+
+	// 3번째 무기(PUPA_ 바뀌어선 안되는 무기)가 현재 선택된 무기일때
+	if (m_iSelectWeapon == THIRD_WEAPON)
+	{
+		m_iSelectWeapon = FIRST_WEAPON; //무조건 첫번째를 바꿔라
+		iTotalSelect = FIRST_WEAPON;
+	}
+	if (m_pWeaponSlot[FIRST_WEAPON] != nullptr && m_pWeaponSlot[SECOND_WEAPON] == nullptr)
+	{
+		m_iSelectWeapon = SECOND_WEAPON;
+		iTotalSelect = SECOND_WEAPON;
+	}
+
+	if (nullptr != m_pWeaponSlot[m_iSelectWeapon])
+	{
+		m_pWeaponSlot[m_iSelectWeapon]->Set_Activate(false);
+		Drop_Item(m_iSelectWeapon);
+		m_pWeaponSlot[m_iSelectWeapon]->Reset();
+		iTotalSelect = m_iSelectWeapon;
+	}
+
+
+	m_pWeaponSlot[m_iSelectWeapon] = dynamic_cast<CWeapon*>(m_pGameInstance->Get_Object(LEVEL_STATIC, TEXT("Layer_Weapon"), iWeapon));
+	if (iExtraBullet)
+		m_pWeaponSlot[m_iSelectWeapon]->Set_Weapon_Bullet_Info(iExtraBullet,iNowBullet);
+	
+	m_pWeaponSlot[m_iSelectWeapon]->Set_Activate(true);
+	m_pWeaponSlot[m_iSelectWeapon]->Set_SlotIndex (iTotalSelect);
+}
+
+HRESULT CPlayer::Drop_Item(_uint iIndex)
+{
+
+	CItem_Weapon::WEAPON_ITEM_DESC ItemWeaponDesc = {};
+	ItemWeaponDesc.pTerrainTranformCom = dynamic_cast<CTransform*>(m_pGameInstance->Get_Component(g_eLevel, TEXT("Layer_Terrain"), g_strTransformTag.c_str()));
+	ItemWeaponDesc.pTerrainVIBufferCom = dynamic_cast<CVIBuffer_Terrain*>(m_pGameInstance->Get_Component(g_eLevel, TEXT("Layer_Terrain"), TEXT("Com_VIBuffer")));
+	ItemWeaponDesc.vPos = m_pTransform->Get_State(CTransform::STATE_POSITION);
+	ItemWeaponDesc.vLook = m_vPlayerLook;
+	ItemWeaponDesc.bPlayerDrop = true;
+	ItemWeaponDesc.fRotationPerSec = D3DXToRadian(90.f);
+	ItemWeaponDesc.iNowBullet = m_pWeaponSlot[iIndex]->Get_Weapon_Bullet_Info().iNowBulletNum;
+	ItemWeaponDesc.iExtraBullet = m_pWeaponSlot[iIndex]->Get_Weapon_Bullet_Info().iExtraBulletNum;
+	ItemWeaponDesc.iWeaponID = m_pWeaponSlot[iIndex]->Get_ID();
+	if (FAILED(m_pGameInstance->Add_Clone(g_eLevel, TEXT("Layer_Item"), TEXT("Prototype_GameObject_Item_Weapon"), &ItemWeaponDesc)))
+	{
+		MSG_BOX(TEXT("Failed to Ready_Layer_Item_Weapon : CLevel_GamePlay"));
+		return E_FAIL;
+	}
+
+	return S_OK;
+}
+
+void CPlayer::Return_Look_Position(_float3* pvLook, _float3* pvPosition)
+{
+	*pvLook = m_pTransform->Get_State(CTransform::STATE_LOOK);
+	*pvPosition = m_pTransform->Get_State(CTransform::STATE_POSITION);
+}
+
+void CPlayer::Look_At(const _float3& vAt)
+{
+	m_pTransform->LookAt(vAt);
+}
+
+HRESULT CPlayer::Add_Components()
+{	/* For.Com_VIBuffer */
+	if (FAILED(__super::Add_Component(LEVEL_STATIC, TEXT("Prototype_Component_VIBuffer_Rect"), TEXT("Com_VIBuffer"), reinterpret_cast<CComponent**>(&m_pVIBuffer_Com))))
+	{
+		MSG_BOX(TEXT("Failed to Prototype_Component_VIBuffer_Rect : Add_Components"));
+		return E_FAIL;
+	}
+
+	/* For.Com_Texture */
+	//Idle
+	if (FAILED(__super::Add_Component(LEVEL_STATIC, TEXT("Prototype_Component_Texture_Player_Idle"),
+		TEXT("Com_Texture1"), (CComponent**)&m_pTextureIdle)))
+	{
+		MSG_BOX(TEXT("Failed to Prototype_Component_Texture_PlayerIdle : Add_Components"));
+		return E_FAIL;
+	}
+	//Move
+	if (FAILED(__super::Add_Component(LEVEL_STATIC, TEXT("Prototype_Component_Texture_Player_Move"),
+		TEXT("Com_Texture2"), (CComponent**)&m_pTextureMove)))
+	{
+		MSG_BOX(TEXT("Failed to Prototype_Component_Texture_PlayerIdle : Add_Components"));
+		return E_FAIL;
+	}
+	//Roll
+	if (FAILED(__super::Add_Component(LEVEL_STATIC, TEXT("Prototype_Component_Texture_Player_Roll"),
+		TEXT("Com_Texture3"), (CComponent**)&m_pTextureRoll)))
+	{
+		MSG_BOX(TEXT("Failed to Prototype_Component_Texture_PlayerIdle : Add_Components"));
+		return E_FAIL;
+	}
+	//TPS
+	if (FAILED(__super::Add_Component(LEVEL_STATIC, TEXT("Prototype_Component_Texture_Player_TPS"),
+		TEXT("Com_Texture4"), (CComponent**)&m_pTextureTPS)))
+	{
+		MSG_BOX(TEXT("Failed to Prototype_Component_Texture_PlayerIdle : Add_Components"));
+		return E_FAIL;
+	}
+	//Death
+	if (FAILED(__super::Add_Component(LEVEL_STATIC, TEXT("Prototype_Component_Texture_Player_Death"),
+		TEXT("Com_Texture5"), (CComponent**)&m_pTextureDeath)))
+	{
+		MSG_BOX(TEXT("Failed to Prototype_Component_Texture_PlayerDeath : Add_Components"));
+		return E_FAIL;
+	}
+	//Body
+	if (FAILED(__super::Add_Component(LEVEL_STATIC, TEXT("Prototype_Component_Texture_Player_TPS_Body"),
+		TEXT("Com_Texture6"), (CComponent**)&m_pTextureTPS_Body)))
+	{
+		MSG_BOX(TEXT("Failed to Prototype_Component_Texture_TPS_Body : Add_Components"));
+		return E_FAIL;
+	}
+	//Head
+	if (FAILED(__super::Add_Component(LEVEL_STATIC, TEXT("Prototype_Component_Texture_Player_TPS_Head"),
+		TEXT("Com_Texture7"), (CComponent**)&m_pTextureTPS_Head)))
+	{
+		MSG_BOX(TEXT("Failed to Prototype_Component_Texture_TPS_Head : Add_Components"));
+		return E_FAIL;
+	}
+	//Hand
+	if (FAILED(__super::Add_Component(LEVEL_STATIC, TEXT("Prototype_Component_Texture_Player_TPS_Hand"),
+		TEXT("Com_Texture8"), (CComponent**)&m_pTextureTPS_Hand)))
+	{
+		MSG_BOX(TEXT("Failed to Prototype_Component_Texture_TPS_Hand : Add_Components"));
+		return E_FAIL;
+	}
+
+
+	//TO DO: 예은 추가
+
+	CState::STATE_DESC StateDest = {};
+	StateDest.fCP = 5.f;
+	StateDest.fMaxHp = 3.f;
+	/* For. Com_State*/
+	if (FAILED(__super::Add_Component(LEVEL_STATIC, TEXT("Prototype_Component_State"), TEXT("Com_State"), reinterpret_cast<CComponent**>(&m_pStateCom),&StateDest)))
+	{
+		MSG_BOX(TEXT("Failed to Prototype_Component_State : Add_Components"));
+		return E_FAIL;
+	}
+
+	/* For. Com_Collider*/
+	if (FAILED(__super::Add_Component(LEVEL_STATIC, TEXT("Prototype_Component_Collider_Rect"), TEXT("Com_Collider_Rect"), reinterpret_cast<CComponent**>(&m_pCollider_Com[COLLIDER_RECT]))))
+	{
+		MSG_BOX(TEXT("Failed to Prototype_Component_Collider_Rect : Add_Components"));
+		return E_FAIL;
+	}
+
+	if (FAILED(__super::Add_Component(LEVEL_STATIC, TEXT("Prototype_Component_Collider_Sphere"), TEXT("Com_Collider_Sphere"), reinterpret_cast<CComponent**>(&m_pCollider_Com[COLLIDER_SPHERE]))))
+	{
+		MSG_BOX(TEXT("Failed to Prototype_Component_Collider_Sphere : Add_Components"));
+		return E_FAIL;
+	}
+
+	if (FAILED(__super::Add_Component(LEVEL_STATIC, TEXT("Prototype_Component_Collider_Cube_AABB"), TEXT("Com_Collider_Cube_AABB"), reinterpret_cast<CComponent**>(&m_pCollider_Com[COLLIDER_CUBE_AABB]))))
+	{
+		MSG_BOX(TEXT("Failed to Prototype_Component_Collider_Cube_AABB : Add_Components"));
+		return E_FAIL;
+	}
+	return S_OK;
+}
+
+HRESULT CPlayer::Render_Again(_float fSizeX, _float fSizeY, _float fX, _float fY, _uint iFrame, CTexture* pTexture)
+{
+
+	//직교투영용(빌보드 사용시 주석처리)
+	m_pTransform->Set_Scale(_float3(fSizeX, fSizeY, 1.f));
+
+
+	//빌보드용(빌보드가 아닐시 주석처리)
+	if(fY < 0.f)
+		m_pTransform->Go_Down(-fY);
+	else
+		m_pTransform->Go_Up(fY);
+	if (fX < 0.f)
+		m_pTransform->Go_Left(-fX);
+	else
+		m_pTransform->Go_Right(fX);
+
+
+
+	if (FAILED(m_pTransform->Bind_WorldMatrix()))
+		return E_FAIL;
+	if (FAILED(pTexture->Bind_Texture(0, iFrame)))
+	{
+		MSG_BOX(TEXT("Failed to Bind_Texture : Render"));
+		return E_FAIL;
+	}
+	if (FAILED(Set_RenderState()))
+	{
+		MSG_BOX(TEXT("Failed to Set_RenderState : Render"));
+		return E_FAIL;
+	}
+	if (FAILED(m_pVIBuffer_Com->Render()))
+	{
+		MSG_BOX(TEXT("Failed to Render : Render"));
+		return E_FAIL;
+	}
+
+	return S_OK;
+
+}
+
+void CPlayer::Mouse_Axis_Turn(_float fTimeDelta)
+{
+	POINT ptMouse = {};
+	GetCursorPos(&ptMouse);
+	
+	_long lDeltaX = ptMouse.x - m_ptMouse.x;
+	_long lDeltaY = ptMouse.y - m_ptMouse.y;
+
+	if (0.f != lDeltaX)
+	{
+		m_pTransform->Turn(_float3(0.f,1.f,0.f), fTimeDelta * lDeltaX);
+	}
+
+	if (0.f != lDeltaY)
+	{
+		m_pTransform->Turn(m_pTransform->Get_State(CTransform::STATE_RIGHT), fTimeDelta * lDeltaY);
+	}
+
+	m_ptMouse = ptMouse;
+}
+
+void CPlayer::Landing_Terrain()
+{
+	//CVIBuffer_Terrain* pVITerrainCom = dynamic_cast<CVIBuffer_Terrain*>(m_pGameInstance->Get_Component(LEVEL_TUTORIAL, TEXT("Layer_Terrain"), TEXT("Com_VIBuffer")));
+	if (nullptr == m_pTerrainVIBufferCom)
+		return;
+	_float3 vPos = m_pTransform->Get_State(CTransform::STATE_POSITION);
+	vPos.y = m_pTerrainVIBufferCom->Landing_Object(vPos) + 0.5f;
+	m_pTransform->Set_State(CTransform::STATE_POSITION,vPos);
+}
+
+
+
+_float3 CPlayer::Return_ViewPort_Pos()
+{
+	_float3 vPosition = m_pTransform->Get_State(CTransform::STATE_POSITION);
+
+	_float4x4 ViewMatrix, ProjectionMatrix;
+
+	m_pGraphic_Device->GetTransform(D3DTS_VIEW, &ViewMatrix);
+	m_pGraphic_Device->GetTransform(D3DTS_PROJECTION, &ProjectionMatrix);
+
+	// 월드 > 뷰 > 투영
+	vPosition = *D3DXVec3TransformCoord(&vPosition, &vPosition, &ViewMatrix);
+	vPosition = *D3DXVec3TransformCoord(&vPosition, &vPosition, &ProjectionMatrix);
+
+	// 투영 스페이스 >> 뷰포트
+	vPosition.x = vPosition.x * g_iWinSizeX * 0.5f + g_iWinSizeX * 0.5f;
+	vPosition.y = vPosition.y * g_iWinSizeY * 0.5f + g_iWinSizeY * 0.5f;
+
+
+	return vPosition;
+}
+
+HRESULT CPlayer::Set_RenderState()
+{
+	if (FAILED(m_pGraphic_Device->SetRenderState(D3DRS_ALPHATESTENABLE, TRUE)))
+	{
+		MSG_BOX(TEXT("Failed to SetRenderState : D3DRS_ALPHATESTENABLE"));
+		return E_FAIL;
+	}
+	if (FAILED(m_pGraphic_Device->SetRenderState(D3DRS_ALPHAREF, 128)))
+	{
+		MSG_BOX(TEXT("Failed to SetRenderState : D3DRS_ALPHAREF"));
+		return E_FAIL;
+	}
+	if (FAILED(m_pGraphic_Device->SetRenderState(D3DRS_ALPHAFUNC, D3DCMP_GREATER)))
+	{
+		MSG_BOX(TEXT("Failed to SetRenderState : D3DRS_ALPHAFUNC"));
+		return E_FAIL;
+	}
+	return S_OK;
+}
+
+HRESULT CPlayer::Reset_RenderState()
+{
+	if (FAILED(m_pGraphic_Device->SetRenderState(D3DRS_ALPHATESTENABLE, FALSE)))
+	{
+		MSG_BOX(TEXT("Failed to SetRenderState : D3DRS_ALPHATESTENABLE"));
+		return E_FAIL;
+	}
+
+	return S_OK;
+}
+
+HRESULT CPlayer::Motion_Change(_float fTimeDelta)
+{
+	if (m_ePreState != m_eCurState)
+	{
+		switch (m_eCurState)
+		{
+		case STATE_IDLE:
+			m_pTextureCom = m_pTextureIdle;
+			m_fTextureMaxPicture = 15.f;
+			m_fTextureSpeed = 1.f;
+			break;
+		case STATE_IDLE_WALK:
+			m_pTextureCom = m_pTextureMove;
+			m_fTextureMaxPicture = 7.f;
+			m_fTextureSpeed = 1.f;
+			break;
+		case STATE_AIMING:
+			m_fOrthoBodyFrame = 0.f;
+			break;
+		case STATE_AIMING_WALK:
+			m_fOrthoBodyFrame = 13.f;
+			m_fOrthoHandFrame = 0.f;
+			break;
+		case STATE_AIMING_ZOOM:
+			m_fOrthoBodyFrame = 0.f;
+			m_fOrthoHandFrame = 0.f;
+			break;
+		case STATE_ROLL:
+			m_pTextureCom = m_pTextureRoll;
+			m_fTextureMaxPicture = 7.f;
+			m_fTextureSpeed = 1.3f;
+			break;
+		case STATE_DEAD:
+			m_pTextureCom = m_pTextureDeath;
+			m_fTextureMaxPicture = 7.f;
+			m_fTextureSpeed = 1.f;
+			break;
+		case STATE_HIT:
+			m_pTextureCom = m_pTextureIdle;
+			m_fTextureMaxPicture = 15.f;
+			m_fTextureSpeed = 1.f;
+			break;
+		case STATE_END:
+			break;
+		}
+		m_ePreState = m_eCurState;
+	}
+	if (m_ePreAiming != m_eCurAiming)
+	{
+		switch (m_eCurAiming)
+		{
+		case AIMING_NOTHING:
+			m_fOrthoHandFrame = 0.f;
+			break;
+		case AIMING_SHOOT:
+			m_fOrthoHandFrame = 0.f;
+			break;
+		case AIMING_GUN_CHANGE:
+			m_fOrthoHandFrame = 5.f;
+			break;
+		
+		case STATE_END:
+			break;
+		}
+		m_ePreState = m_eCurState;
+	}
+
+	// 시간에 따라 텍스쳐를 설정해 준다.
+	m_fTexture += m_fTextureMaxPicture * fTimeDelta * m_fTextureSpeed;
+	if (m_fTexture >= m_fTextureMaxPicture)
+	{
+		m_fTexture = 0;
+		if (!m_bRollDone)
+		{
+			m_bRollDone = true;
+			m_pSkillSlot[SPACE_SKILL]->Set_Activate(false);
+		}
+	}
+
+	m_fTextureDir = m_fTextureDir * (m_fTextureMaxPicture + 1);
+
+
+	// 방향에 따라 텍스쳐를 설정해준다.
+	m_fTextureTotal = m_fTexture + m_fTextureDir;
+
+
+		return S_OK;
+}
+
+_float3 CPlayer::Compute_MovePos()
+{
+	CVIBuffer* pVIBuffer = dynamic_cast<CVIBuffer*>(m_pTerrainVIBufferCom);
+	_float3 vDestinationPosition = pVIBuffer->Compute_Picking(m_pTerrainTranformCom);
+
+	vDestinationPosition = *D3DXVec3TransformCoord(&vDestinationPosition, &vDestinationPosition, m_pTerrainTranformCom->Get_WorldMatrix());
+
+	return vDestinationPosition;
+}
+
+void CPlayer::Shot_Bullet()
+{
+
+	if (!dynamic_cast<CCamera_Player_DW*>(m_pGameInstance->Get_Object(LEVEL_STATIC, TEXT("Layer_Camera_Player")))->Get_CanShotBullet())
+		return;
+
+	m_pWeaponSlot[m_iSelectWeapon]->Shot_Bullet();
+	dynamic_cast<CCamera_Player_DW*>(m_pGameInstance->Get_Object(LEVEL_STATIC, TEXT("Layer_Camera_Player")))->SetCameraRebound(m_pWeaponSlot[m_iSelectWeapon]->Get_ReboundSize(), 1.f / m_pWeaponSlot[m_iSelectWeapon]->Get_ShootingTerm() * 10.f);
+}
+
+
+void CPlayer::Look_At_Aim()
+{
+	_float3 vColPos = Compute_MovePos();
+	
+	//카메라가 목적지를 보게해야함 
+	if (nullptr == m_pDWCameraTranformCom)
+	{
+		m_pDWCameraTranformCom = dynamic_cast<CTransform*>(m_pGameInstance->Get_Component(LEVEL_STATIC, TEXT("Layer_Camera_Player"), g_strTransformTag));
+		if (nullptr != m_pDWCameraTranformCom)
+			Safe_AddRef(m_pDWCameraTranformCom);
+	}
+		
+	// y는 플레이어의 눈높이로..
+	m_pDWCameraTranformCom->Set_State(CTransform::STATE_POSITION, m_pTransform->Get_State(CTransform::STATE_POSITION));
+	//마우스 포즈를 카메라로 넘겨 줌
+	m_vMousePos = _float3(vColPos.x, m_pTransform->Get_State(CTransform::STATE_POSITION).y, vColPos.z);
+}
+
+void CPlayer::SetUp_BillBoard()
+{
+	//CTransform* pCameraTransformCom = dynamic_cast<CTransform*>(m_pGameInstance->Get_Component(g_eLevel, TEXT("Layer_Camera_Player"), g_strTransformTag));
+	if (nullptr == m_pDWCameraTranformCom)
+	{
+		m_pDWCameraTranformCom = dynamic_cast<CTransform*>(m_pGameInstance->Get_Component(LEVEL_STATIC, TEXT("Layer_Camera_Player"), g_strTransformTag));
+		if (nullptr != m_pDWCameraTranformCom)
+			Safe_AddRef(m_pDWCameraTranformCom);
+	}
+
+	if (nullptr == m_pDWCameraTranformCom)
+	{
+		MSG_BOX(TEXT("nullptr == pCameraTransformCom : CPlayer::SetUp_BillBoard()"));
+		return;
+	}
+
+	_float4x4 pCameraWorldMatrix = *m_pDWCameraTranformCom->Get_WorldMatrix();
+
+
+	_float3 vScale = m_pTransform->Get_Scale();
+
+	m_pTransform->Set_State(CTransform::STATE_RIGHT, *D3DXVec3Normalize((_float3*)&pCameraWorldMatrix.m[CTransform::STATE_RIGHT][0], (_float3*)&pCameraWorldMatrix.m[CTransform::STATE_RIGHT][0]) * vScale.x);
+	m_pTransform->Set_State(CTransform::STATE_LOOK, *D3DXVec3Normalize((_float3*)&pCameraWorldMatrix.m[CTransform::STATE_LOOK][0], (_float3*)&pCameraWorldMatrix.m[CTransform::STATE_LOOK][0]) * vScale.z);
+
+}
+
+void CPlayer::SetUp_BillBoardToUP()
+{
+	if (nullptr == m_pDWCameraTranformCom)
+	{
+		m_pDWCameraTranformCom = dynamic_cast<CTransform*>(m_pGameInstance->Get_Component(LEVEL_STATIC, TEXT("Layer_Camera_Player"), g_strTransformTag));
+		if (nullptr != m_pDWCameraTranformCom)
+			Safe_AddRef(m_pDWCameraTranformCom);
+	}
+
+	if (nullptr == m_pDWCameraTranformCom)
+	{
+		MSG_BOX(TEXT("nullptr == pCameraTransformCom : CPlayer::SetUp_BillBoard()"));
+		return;
+	}
+
+	_float4x4 pCameraWorldMatrix = *m_pDWCameraTranformCom->Get_WorldMatrix();
+
+
+	_float3 vScale = m_pTransform->Get_Scale();
+
+	m_pTransform->Set_State(CTransform::STATE_UP,_float3(0.f,1.f,0.f) * vScale.y);
+	m_pTransform->Set_State(CTransform::STATE_RIGHT, *D3DXVec3Normalize((_float3*)&pCameraWorldMatrix.m[CTransform::STATE_RIGHT][0], (_float3*)&pCameraWorldMatrix.m[CTransform::STATE_RIGHT][0]) * vScale.x);
+	_float3 vLook = *D3DXVec3Cross(&vLook, &m_pTransform->Get_State(CTransform::STATE_RIGHT), &_float3(0.f, 1.f, 0.f));
+	m_pTransform->Set_State(CTransform::STATE_LOOK, vLook * vScale.z);
+
+}
+
+void CPlayer::SetUp_BilBoardToAiming()
+{
+	//CTransform* pCameraTransformCom = dynamic_cast<CTransform*>(m_pGameInstance->Get_Component(g_eLevel, TEXT("Layer_Camera_Player"), g_strTransformTag));
+	if (nullptr == m_pDWCameraTranformCom)
+	{
+		m_pDWCameraTranformCom = dynamic_cast<CTransform*>(m_pGameInstance->Get_Component(LEVEL_STATIC, TEXT("Layer_Camera_Player"), g_strTransformTag));
+		if (nullptr != m_pDWCameraTranformCom)
+			Safe_AddRef(m_pDWCameraTranformCom);
+	}
+
+	if (nullptr == m_pDWCameraTranformCom)
+	{
+		MSG_BOX(TEXT("nullptr == pCameraTransformCom : CPlayer::SetUp_BillBoard()"));
+		return;
+	}
+
+	_float4x4 pCameraWorldMatrix = *m_pDWCameraTranformCom->Get_WorldMatrix();
+
+	_float3 vScale = m_pTransform->Get_Scale();
+
+	m_pTransform->Set_State(CTransform::STATE_RIGHT, *D3DXVec3Normalize((_float3*)&pCameraWorldMatrix.m[CTransform::STATE_RIGHT][0], (_float3*)&pCameraWorldMatrix.m[CTransform::STATE_RIGHT][0]) * vScale.x);
+	m_pTransform->Set_State(CTransform::STATE_LOOK, *D3DXVec3Normalize((_float3*)&pCameraWorldMatrix.m[CTransform::STATE_LOOK][0], (_float3*)&pCameraWorldMatrix.m[CTransform::STATE_LOOK][0]) * vScale.z);
+	m_pTransform->Set_State(CTransform::STATE_UP, *D3DXVec3Normalize((_float3*)&pCameraWorldMatrix.m[CTransform::STATE_UP][0], (_float3*)&pCameraWorldMatrix.m[CTransform::STATE_UP][0]) * vScale.y);
+
+
+}
+
+void CPlayer::Collider_Update()
+{
+	//Collision
+	_float4x4 WorldMatrix = *m_pTransform->Get_WorldMatrix();
+	m_pCollider_Com[COLLIDER_RECT]->Update_Collider_Info(WorldMatrix);
+	m_pCollider_Com[COLLIDER_SPHERE]->Update_Collider_Info(WorldMatrix);
+	m_pCollider_Com[COLLIDER_CUBE_AABB]->Update_Collider_Info(WorldMatrix);
+}
+
+void CPlayer::Collision(_float fTimeDelta)
+{
+	//TODO : 콜리전용
+	Collision_Wall();
+	Collider_Update();
+	Collision_Monster_Bullet(fTimeDelta);
+	Collision_Trigger();
+}
+
+void CPlayer::Collision_Wall()
+{
+	//중점에서 룩방향(나중에 8방향)으로 스케일(또는 일정거리)크기의 레이를 쏨.
+	//쏴서 맞으면 밀어내기.
+	_float3 vRayPos = m_pTransform->Get_State(CTransform::STATE_POSITION);
+	_float3 vRayDir[4] = {
+		 m_pTransform->Get_State(CTransform::STATE_LOOK),
+		 m_pTransform->Get_State(CTransform::STATE_RIGHT),
+		 -m_pTransform->Get_State(CTransform::STATE_LOOK),
+		 -m_pTransform->Get_State(CTransform::STATE_RIGHT)
+	};
+	_float fLength[4] = {
+		D3DXVec3Length(&vRayDir[0]),
+		D3DXVec3Length(&vRayDir[1]),
+		D3DXVec3Length(&vRayDir[2]),
+		D3DXVec3Length(&vRayDir[3])
+	};
+	for (size_t i = 0; i < 4; i++)
+	{
+		D3DXVec3Normalize(&vRayDir[i], &vRayDir[i]);
+	}
+	
+	list<CGameObject*>* pWallList = m_pGameInstance->Get_List(g_eLevel, TEXT("Layer_Wall"));
+	if (nullptr == pWallList)
+		return;
+
+	_float fMinDist(1000.f); //큰 값으로 초기화
+	for (auto& iter : *pWallList)//Wall List 전부를 순회하면서 충돌을 판단한다.
+	{
+		CCollider_Rect* pCollider_Rect = dynamic_cast<CCollider_Rect*>(iter->Get_Component(TEXT("Com_Collider_Rect")));
+		if (nullptr == pCollider_Rect)
+			continue;
+		_float fDist(1000.f);
+		for (size_t i = 0; 4 > i; ++i)
+		{
+			if (m_pGameInstance->Collision_Rect_Ray_Same_Space(pCollider_Rect, vRayDir[i], vRayPos, fLength[i], &fDist)) //충돌이 일어났을 때
+			{
+				if (fMinDist > fDist) //
+				{
+					fMinDist = fDist;
+					m_pTransform->Set_State(CTransform::STATE_POSITION, vRayPos + vRayDir[i] * (fMinDist - 1.f));
+				}
+			}
+		}
+	}
+}
+
+void CPlayer::Collision_Trigger()
+{
+	Collision_Door();
+
+}
+
+void CPlayer::Collision_Door()
+{
+	if (LEVEL_SNOWBOSS == g_eLevel)
+		return;
+	CTrigger_Door* pDoor = dynamic_cast<CTrigger_Door*>(m_pGameInstance->Get_Object(g_eLevel, TEXT("Layer_Trigger_Door")));
+	if (nullptr == pDoor)
+		return;
+
+	CCollider_Sphere* pDoorCollider = dynamic_cast<CCollider_Sphere*>(pDoor->Get_Component(TEXT("Com_Collider_Sphere")));
+	if (nullptr == pDoorCollider)
+		return;
+	CCollider_Sphere* pCollider_Sphere = dynamic_cast<CCollider_Sphere*>(m_pCollider_Com[COLLIDER_SPHERE]);
+
+	if (m_pGameInstance->Collision_Sphere(pCollider_Sphere, pDoorCollider))
+	{
+		m_pGameInstance->StopAll();
+
+		if (g_eLevel == LEVEL_TUTORIAL)
+		{
+			g_eLevel = LEVEL_NORMAL1;
+			if (FAILED(m_pGameInstance->Open_Level(LEVEL_LOADING, CLevel_Loading::Create(m_pGraphic_Device, LEVEL_NORMAL1))))
+				return;
+
+		}
+		else if (g_eLevel == LEVEL_NORMAL1)
+		{
+			g_eLevel = LEVEL_1945;
+			if (FAILED(m_pGameInstance->Open_Level(LEVEL_LOADING, CLevel_Loading::Create(m_pGraphic_Device, LEVEL_1945))))
+				return;
+		}
+		else if (g_eLevel == LEVEL_NORMAL2)
+		{
+			g_eLevel = LEVEL_SNOWBOSS;
+			if (FAILED(m_pGameInstance->Open_Level(LEVEL_LOADING, CLevel_Loading::Create(m_pGraphic_Device, LEVEL_SNOWBOSS))))
+				return;
+		}
+	}
+}
+
+void CPlayer::Collision_Monster_Bullet(_float fTimeDelta)
+{
+	//몬스터 불릿 레이어를 가져와서 플레이어의 콜라이더 렉트와 충돌처리를 한다.
+	//몬스터 불릿(레이) 플레이어(렉트)
+	list<CGameObject*>* pMonsterBulletList = m_pGameInstance->Get_List(g_eLevel, TEXT("Layer_Monster_Bullet"));
+	if (nullptr == pMonsterBulletList)
+		return;
+
+	//구 충돌
+	CCollider_Sphere* pCollider_Sphere = dynamic_cast<CCollider_Sphere*>(m_pCollider_Com[COLLIDER_SPHERE]);
+	for (auto iter = pMonsterBulletList->begin(); iter != pMonsterBulletList->end(); ++iter)
+	{
+		CCollider_Sphere* pMonsterBulletCollider = dynamic_cast<CCollider_Sphere*>(((*iter))->Get_Component(TEXT("Com_Collider_Sphere")));
+		if (m_pGameInstance->Collision_Sphere(pCollider_Sphere, pMonsterBulletCollider))
+		{
+			(*iter)->Set_Dead();
+			Set_Hit(true);
+		}
+	}
+
+}
+
+void CPlayer::Effect_Player_Move(_float fTimeDelta)
+{
+	//TODO: 용수 발걸음 이펙트 
+	if(nullptr == m_pEffectPlayerMove)
+	{
+		m_pEffectPlayerMove = dynamic_cast<CEffect_Player_Move*> (m_pGameInstance->Get_Object(LEVEL_STATIC, TEXT("Layer_Effect_Player_Move")));
+		if(nullptr != m_pEffectPlayerMove)
+			Safe_AddRef(m_pEffectPlayerMove);
+	}
+	if (nullptr != m_pEffectPlayerMove)
+	{
+		_float3 vCloudPos = m_pTransform->Get_State(CTransform::STATE_POSITION) - m_pTransform->Get_State(CTransform::STATE_UP) * 0.4f;
+		m_pEffectPlayerMove->Show_Explosion(vCloudPos, fTimeDelta);
+	}
+}
+
+void CPlayer::Key_Input(_float fTimeDelta)
+{
+
+	_uint iRand = rand() % 5;
+	//TODO: 예은 - HP UI 연동 확인용
+	m_fTime += fTimeDelta;
+	m_fTimeForfoot += fTimeDelta;
+	if ((GetKeyState('H') & 0x8000) && m_fTime >= 2.f)
+	{
+		m_bHit = true;
+	}
+	if ((GetKeyState('Y') & 0x8000) && m_fTime >= 2.f && m_pStateCom->Get_State(CState::STATE_HP) < 3.f)
+	{
+		m_pStateCom->Set_Hp(1.f);
+	}
+	
+	//스킬
+	if (nullptr != m_pSkillSlot[SPACE_SKILL]) //Roll 고정
+	{
+		if (m_fSp - m_pSkillSlot[SPACE_SKILL]->Get_SpendSp() < 0.f)
+		{
+			m_pSkillSlot[SPACE_SKILL]->Set_Activate(false);
+			m_pSkillSlot[SPACE_SKILL]->Set_No(true);
+
+		}
+		else if (m_pGameInstance->Key_Pressing(VK_SPACE) && m_pSkillCoolTime[SPACE_SKILL] > (m_pSkillSlot[SPACE_SKILL])->Get_CoolTime())
+		{
+			m_pGameInstance->StopSound(CSound_Manager::PLAYER);
+			m_fSp -= m_pSkillSlot[SPACE_SKILL]->Get_SpendSp();
+ 			m_eCurState = STATE_ROLL;
+			m_fTexture = 0.f;
+			m_pSkillCoolTime[SPACE_SKILL] = 0.f;
+			m_bRollDone = false;
+			m_pSkillSlot[SPACE_SKILL]->Set_Activate(true);
+			m_pGameInstance->PlaySoundW(TEXT("roll.wav"),CSound_Manager::PLAYER,0.2f);
+		}
+	}
+	if (nullptr != m_pSkillSlot[SHIFT_SKILL])
+	{
+		if (m_pGameInstance->Key_Pressing(VK_SHIFT) && m_pSkillCoolTime[SHIFT_SKILL] > (m_pSkillSlot[SHIFT_SKILL])->Get_CoolTime())
+		{
+			m_fSp -= m_pSkillSlot[SHIFT_SKILL]->Get_SpendSp();
+			m_fTexture = 0.f;
+			m_pSkillCoolTime[SHIFT_SKILL] = 0.f;
+			m_pSkillSlot[SHIFT_SKILL]->Set_Activate(true);
+		}
+	}
+	//if (nullptr != m_pSkillSlot[Q_SKILL])
+	//{
+	//	if (m_pGameInstance->Key_Pressing('Q') && m_pSkillCoolTime[Q_SKILL] > (m_pSkillSlot[Q_SKILL])->Get_CoolTime())
+	//	{
+	//		m_fTexture = 0.f;
+	//		m_pSkillCoolTime[Q_SKILL] = 0.f;
+	//		m_pSkillSlot[Q_SKILL]->Set_Activate(true);
+	//	}
+	//}
+	//if(nullptr != m_pSkillSlot[F_SKILL])
+	//{
+	//	if (m_pGameInstance->Key_Pressing('F') && m_pSkillCoolTime[F_SKILL] > (m_pSkillSlot[F_SKILL])->Get_CoolTime())
+	//	{
+	//		m_fTexture = 0.f;
+	//		m_pSkillCoolTime[F_SKILL] = 0.f;
+	//		m_pSkillSlot[F_SKILL]->Set_Activate(true);
+	//	}
+	//}
+	
+	//무기
+	if (m_pGameInstance->Key_Pressing('1'))
+	{
+		if (nullptr != m_pWeaponSlot[FIRST_WEAPON])
+		{
+			if(m_iSelectWeapon != FIRST_WEAPON)
+				m_eCurAiming = AIMING_GUN_CHANGE;
+			m_iSelectWeapon = FIRST_WEAPON;
+			if (nullptr != m_pWeaponSlot[SECOND_WEAPON])
+				m_pWeaponSlot[SECOND_WEAPON]->Set_Idle();
+			if (nullptr != m_pWeaponSlot[THIRD_WEAPON])
+				m_pWeaponSlot[THIRD_WEAPON]->Set_Idle();
+		}
+	}
+	if (m_pGameInstance->Key_Pressing('2'))
+	{
+		if (nullptr != m_pWeaponSlot[SECOND_WEAPON])
+		{
+			if (m_iSelectWeapon != SECOND_WEAPON)
+				m_eCurAiming = AIMING_GUN_CHANGE;
+			m_iSelectWeapon = SECOND_WEAPON;
+			if (nullptr != m_pWeaponSlot[FIRST_WEAPON])			
+				m_pWeaponSlot[FIRST_WEAPON]->Set_Idle();
+
+			if (nullptr != m_pWeaponSlot[THIRD_WEAPON])
+				m_pWeaponSlot[THIRD_WEAPON]->Set_Idle();
+		}
+	}
+	if (m_pGameInstance->Key_Pressing('3'))
+	{
+		if (nullptr != m_pWeaponSlot[THIRD_WEAPON])
+		{
+			if (m_iSelectWeapon != THIRD_WEAPON)
+				m_eCurAiming = AIMING_GUN_CHANGE;
+			m_iSelectWeapon = THIRD_WEAPON;
+			if(nullptr != m_pWeaponSlot[FIRST_WEAPON])
+				m_pWeaponSlot[FIRST_WEAPON]->Set_Idle();
+			if (nullptr != m_pWeaponSlot[SECOND_WEAPON])
+			m_pWeaponSlot[SECOND_WEAPON]->Set_Idle();
+		}
+	}
+
+
+	if ((m_pGameInstance->Key_Pressing(VK_RBUTTON)||m_ePreState == STATE_AIMING_ZOOM )&& m_bRollDone)
+	{
+		m_pWeaponSlot[m_iSelectWeapon]->Set_State(CWeapon::STATE_AIMING);
+
+		if (m_bFirstAim)
+		{
+			Look_At_Aim();
+			m_bFirstAim = false;
+		}
+
+		m_eCurState = STATE_AIMING;
+
+		_float3 vWDir = { 0.f,0.f,0.f };
+		_float3 vSDir = { 0.f,0.f,0.f };
+		_float3 vADir = { 0.f,0.f,0.f };
+		_float3 vDDir = { 0.f,0.f,0.f };
+
+
+
+		if (m_pGameInstance->Key_Pressing('A'))
+		{
+			if (m_fTimeForfoot > 0.2f)
+			{
+				TCHAR	szBuf[256] = L"";
+				swprintf_s(szBuf, L"footstep_0%d.wav", iRand);
+				m_pGameInstance->PlaySoundW(szBuf, CSound_Manager::PLAYER, 0.4f);
+				m_fTimeForfoot = 0.f;
+
+			}
+
+			m_bChange = true;
+			m_eCurState = STATE_AIMING_WALK;
+
+			//Effect_Player_Move(fTimeDelta * 0.3f); //용수: 발걸음 이펙트
+
+			if (m_pGameInstance->Key_Pressing('W'))
+			{
+				m_pTransform->Go_SL(fTimeDelta * 0.3f, &vADir);
+				m_eWalk = WALK_STRIAGHT;
+			}
+			else if (m_pGameInstance->Key_Pressing('S'))
+			{
+				m_pTransform->Go_BL(fTimeDelta * 0.3f, &vADir);
+				m_eWalk = WALK_BACK;
+			}
+			else
+			{
+				m_pTransform->Go_Left(fTimeDelta * 0.3f);
+				vADir = -m_pTransform->Get_State(CTransform::STATE_RIGHT);
+			}
+			//D3DXVec3Normalize(&vADir, &vADir);
+		}
+		else if (m_pGameInstance->Key_Pressing('D'))
+		{
+			if (m_fTimeForfoot > 0.2f)
+			{
+				TCHAR	szBuf[256] = L"";
+				swprintf_s(szBuf, L"footstep_0%d.wav", iRand);
+				m_pGameInstance->PlaySoundW(szBuf, CSound_Manager::PLAYER, 0.4f);
+				m_fTimeForfoot = 0.f;
+			}
+
+			m_bChange = true;
+			m_eCurState = STATE_AIMING_WALK;
+
+			//Effect_Player_Move(fTimeDelta * 0.3f); //용수: 발걸음 이펙트
+
+			if (m_pGameInstance->Key_Pressing('W'))
+			{
+				m_eWalk = WALK_STRIAGHT;
+				m_pTransform->Go_SR(fTimeDelta * 0.3f, &vDDir);
+			}
+			else if (m_pGameInstance->Key_Pressing('S'))
+			{
+				m_pTransform->Go_BR(fTimeDelta * 0.3f, &vDDir);
+				m_eWalk = WALK_BACK;
+			}
+			else
+			{
+				m_pTransform->Go_Right(fTimeDelta * 0.3f);
+				vDDir = m_pTransform->Get_State(CTransform::STATE_RIGHT);
+			}
+
+		}
+		else if (m_pGameInstance->Key_Pressing('W'))
+		{
+			if (m_fTimeForfoot > 0.2f)
+			{
+				TCHAR	szBuf[256] = L"";
+				swprintf_s(szBuf, L"footstep_0%d.wav", iRand);
+				m_pGameInstance->PlaySoundW(szBuf, CSound_Manager::PLAYER, 0.4f);
+				m_fTimeForfoot = 0.f;
+
+			}
+
+			m_eWalk = WALK_STRIAGHT;
+			m_bChange = true;
+			m_eCurState = STATE_AIMING_WALK;
+
+			//Effect_Player_Move(fTimeDelta * 0.3f); //용수: 발걸음 이펙트
+
+			if (m_pGameInstance->Key_Pressing('D'))
+				m_pTransform->Go_SR(fTimeDelta * 0.3f, &vWDir);
+			else if (m_pGameInstance->Key_Pressing('A'))
+				m_pTransform->Go_SL(fTimeDelta * 0.3f, &vWDir);
+			else
+			{
+				m_pTransform->Go_Straight(fTimeDelta * 0.3f);
+				vWDir = m_pTransform->Get_State(CTransform::STATE_LOOK);
+			}
+		}
+		else if (m_pGameInstance->Key_Pressing('S'))
+		{
+			if (m_fTimeForfoot > 0.2f)
+			{
+				TCHAR	szBuf[256] = L"";
+				swprintf_s(szBuf, L"footstep_0%d.wav", iRand);
+				m_pGameInstance->PlaySoundW(szBuf, CSound_Manager::PLAYER, 0.4f);
+				m_fTimeForfoot = 0.f;
+
+			}
+			m_eWalk = WALK_BACK;
+			m_bChange = true;
+			m_eCurState = STATE_AIMING_WALK;
+
+			//Effect_Player_Move(fTimeDelta * 0.3f); //용수: 발걸음 이펙트
+
+			if (m_pGameInstance->Key_Pressing('D'))
+				m_pTransform->Go_BR(fTimeDelta * 0.3f, &vSDir);
+			else if (m_pGameInstance->Key_Pressing('A'))
+				m_pTransform->Go_BL(fTimeDelta * 0.3f, &vSDir);
+			else
+			{
+				m_pTransform->Go_Backward(fTimeDelta * 0.3f);
+				vSDir = -m_pTransform->Get_State(CTransform::STATE_LOOK);
+			}
+
+		}
+		if (m_pGameInstance->Key_Pressing(VK_MBUTTON) && m_pWeaponSlot[m_iSelectWeapon]->Get_ID() == CWeapon::WEAPON_SPARROW)
+			m_eCurState = STATE_AIMING_ZOOM;
+
+		if (m_bChange == true)
+		{
+			m_vPlayerLook = vWDir + vSDir + vADir + vDDir;
+			m_bChange = false;
+		}
+		m_bFirstReLoad = true;
+
+
+		//m_vPlayerLook = m_pTransform->Get_State(CTransform::STATE_LOOK);
+	}
+	else if(m_bRollDone)
+	{
+		for (size_t i = 0; i < WEAPON_SLOT_END; i++)
+		{
+			if (nullptr != m_pWeaponSlot[i])
+			{
+				m_pWeaponSlot[i]->Reload();
+				m_pWeaponSlot[i]->Set_Idle();
+			}
+		}
+		if (m_bFirstReLoad)
+		{
+			m_pGameInstance->StopSound(CSound_Manager::CHANNEL_WEAPON);
+			m_pGameInstance->PlaySoundW(TEXT("Reload_Analog.wav"), CSound_Manager::CHANNEL_WEAPON, 0.3f);
+			m_bFirstReLoad = false;
+		}
+		
+		m_fSp += fTimeDelta*2.f;
+		if (m_fSp >= 200.f)
+			m_fSp = 200.f;
+		_float3 vWDir = { 0.f,0.f,0.f };
+		_float3 vSDir = { 0.f,0.f,0.f };
+		_float3 vADir = { 0.f,0.f,0.f };
+		_float3 vDDir = { 0.f,0.f,0.f };
+
+
+
+		m_eCurState = STATE_IDLE;
+		if (m_pGameInstance->Key_Pressing('A'))
+		{
+
+			TCHAR	szBuf[256] = L"";
+			swprintf_s(szBuf, L"footstep_0%d.wav", iRand);
+			m_pGameInstance->PlaySoundW(szBuf, CSound_Manager::PLAYER, 0.4f);
+
+			m_eCurState = STATE_IDLE_WALK;
+			m_bChange = true;
+
+			Effect_Player_Move(fTimeDelta); //용수: 발걸음 이펙트
+
+			if (m_pGameInstance->Key_Pressing('W'))
+				m_pTransform->Go_SL(fTimeDelta, &vADir);
+			else if (m_pGameInstance->Key_Pressing('S'))
+				m_pTransform->Go_BL(fTimeDelta, &vADir);
+			else
+			{
+				m_pTransform->Go_Left(fTimeDelta);
+				vADir = -m_pTransform->Get_State(CTransform::STATE_RIGHT);
+			}
+			//D3DXVec3Normalize(&vADir, &vADir);
+		}
+		else if (m_pGameInstance->Key_Pressing('D'))
+		{
+			TCHAR	szBuf[256] = L"";
+			swprintf_s(szBuf, L"footstep_0%d.wav", iRand);
+			m_pGameInstance->PlaySoundW(szBuf, CSound_Manager::PLAYER, 0.4f);
+
+			m_eCurState = STATE_IDLE_WALK;
+			m_bChange = true;
+
+			Effect_Player_Move(fTimeDelta); //용수: 발걸음 이펙트
+
+			if (m_pGameInstance->Key_Pressing('W'))
+				m_pTransform->Go_SR(fTimeDelta, &vDDir);
+			else if (m_pGameInstance->Key_Pressing('S'))
+				m_pTransform->Go_BR(fTimeDelta, &vDDir);
+			else
+			{
+				m_pTransform->Go_Right(fTimeDelta);
+				vDDir = m_pTransform->Get_State(CTransform::STATE_RIGHT);
+			}
+
+		}
+		else if (m_pGameInstance->Key_Pressing('W'))
+		{
+			TCHAR	szBuf[256] = L"";
+			swprintf_s(szBuf, L"footstep_0%d.wav", iRand);
+			m_pGameInstance->PlaySoundW(szBuf, CSound_Manager::PLAYER, 0.4f);
+
+			m_eCurState = STATE_IDLE_WALK;
+			m_bChange = true;
+
+			Effect_Player_Move(fTimeDelta); //용수: 발걸음 이펙트
+
+			if (m_pGameInstance->Key_Pressing('D'))
+				m_pTransform->Go_SR(fTimeDelta, &vWDir);
+			else if (m_pGameInstance->Key_Pressing('A'))
+				m_pTransform->Go_SL(fTimeDelta, &vWDir);
+			else
+			{
+				m_pTransform->Go_Straight(fTimeDelta);
+				vWDir = m_pTransform->Get_State(CTransform::STATE_LOOK);
+			}
+		}
+		else if (m_pGameInstance->Key_Pressing('S'))
+		{
+			TCHAR	szBuf[256] = L"";
+			swprintf_s(szBuf, L"footstep_0%d.wav", iRand);
+			m_pGameInstance->PlaySoundW(szBuf, CSound_Manager::PLAYER, 0.4f);
+
+			m_eCurState = STATE_IDLE_WALK;
+			m_bChange = true;
+
+			Effect_Player_Move(fTimeDelta); //용수: 발걸음 이펙트
+
+			if (m_pGameInstance->Key_Pressing('D'))
+				m_pTransform->Go_BR(fTimeDelta, &vSDir);
+			else if (m_pGameInstance->Key_Pressing('A'))
+				m_pTransform->Go_BL(fTimeDelta, &vSDir);
+			else
+			{
+				m_pTransform->Go_Backward(fTimeDelta);
+				vSDir = -m_pTransform->Get_State(CTransform::STATE_LOOK);
+			}
+			//D3DXVec3Normalize(&vSDir, &vSDir);
+
+		}
+		m_bFirstAim = true;
+		
+		if (m_bChange == true)
+		{
+			m_vPlayerLook = vWDir + vSDir + vADir + vDDir;
+			m_bChange = false;
+		}
+		
+	}
+
+	if ((m_i3Shooting && m_fTime > m_pWeaponSlot[m_iSelectWeapon]->Get_ShootingTerm() )||((m_pGameInstance->Key_Pressing(VK_RBUTTON)||m_eCurState == STATE_AIMING_ZOOM )&& m_pWeaponSlot[m_iSelectWeapon]->Get_ShootingWay() == 2 &&
+		m_pGameInstance->Key_Down(VK_LBUTTON) && m_fTime > m_pWeaponSlot[m_iSelectWeapon]->Get_ShootingTerm()
+		))
+	{
+		if (m_i3Shooting < 3)
+		{
+			if (m_pWeaponSlot[m_iSelectWeapon]->Get_Weapon_Bullet_Info().iNowBulletNum > 0)
+			{
+				m_pGameInstance->StopSound(CSound_Manager::CHANNEL_WEAPON);
+				Shot_Bullet();
+				m_eCurAiming = AIMING_SHOOT;
+				m_fTime = 0.f;
+				++m_i3Shooting;
+			}
+			else
+			{
+				m_fTime = 0.f;
+
+				//장전하라는 경고
+			}
+		}
+		else
+		{
+			m_i3Shooting = 0;
+		}
+		
+	}
+	else if ((m_pGameInstance->Key_Pressing(VK_RBUTTON) || m_eCurState == STATE_AIMING_ZOOM) && m_pWeaponSlot[m_iSelectWeapon]->Get_ShootingWay()==0&&
+		m_pGameInstance->Key_Pressing(VK_LBUTTON)
+		&& m_fTime > m_pWeaponSlot[m_iSelectWeapon]->Get_ShootingTerm() ) //총 텀
+	{
+		if (m_pWeaponSlot[m_iSelectWeapon]->Get_Weapon_Bullet_Info().iNowBulletNum > 0)
+		{
+			m_pGameInstance->StopSound(CSound_Manager::CHANNEL_WEAPON);
+			Shot_Bullet();
+			m_eCurAiming = AIMING_SHOOT;
+			m_fTime = 0.f;
+		}
+		else
+		{
+			m_fTime = 0.f;
+
+			//장전하라는 경고
+		}
+	}
+	else if ((m_pGameInstance->Key_Pressing(VK_RBUTTON) || m_eCurState == STATE_AIMING_ZOOM) && m_pWeaponSlot[m_iSelectWeapon]->Get_ShootingWay() == 1 &&
+		m_pGameInstance->Key_Down(VK_LBUTTON)
+		&& m_fTime > m_pWeaponSlot[m_iSelectWeapon]->Get_ShootingTerm())
+	{
+		if (m_pWeaponSlot[m_iSelectWeapon]->Get_Weapon_Bullet_Info().iNowBulletNum > 0)
+		{
+			m_pGameInstance->StopSound(CSound_Manager::CHANNEL_WEAPON);
+			Shot_Bullet();
+			m_eCurAiming = AIMING_SHOOT;
+			m_fTime = 0.f;
+		}
+		else
+		{
+			m_fTime = 0.f;
+
+			//장전하라는 경고
+		}
+	}
+
+
+}
+
+
+CPlayer* CPlayer::Create(LPDIRECT3DDEVICE9 pGraphic_Device)
+{
+	CPlayer* pInstance = new CPlayer(pGraphic_Device);
+	if (FAILED(pInstance->Initialize_Prototype()))
+	{
+		MSG_BOX(TEXT("Faild to Created : CPlayer"));
+
+		Safe_Release(pInstance);
+	}
+
+	return pInstance;
+}
+
+CGameObject* CPlayer::Clone(void* pArg)
+{
+	CPlayer* pInstance = new CPlayer(*this);
+	if (FAILED(pInstance->Initialize(pArg)))
+	{
+		MSG_BOX(TEXT("Faild to Cloned : CPlayer"));
+
+		Safe_Release(pInstance);
+	}
+	
+	return pInstance;
+}
+
+void CPlayer::Free()
+{
+	m_pTextureCom = nullptr;
+	Safe_Release(m_pVIBuffer_Com);
+	Safe_Release(m_pTextureIdle);
+	Safe_Release(m_pTextureMove);
+	Safe_Release(m_pTextureRoll);
+	Safe_Release(m_pTextureTPS);
+	Safe_Release(m_pTextureDeath);
+	Safe_Release(m_pTextureTPS_Body);
+	Safe_Release(m_pTextureTPS_Hand);
+	Safe_Release(m_pTextureTPS_Head);
+	Safe_Release(m_pStateCom);
+	Safe_Release(m_pCollider_Com[COLLIDER_SPHERE]);
+	Safe_Release(m_pCollider_Com[COLLIDER_RECT]);
+	Safe_Release(m_pCollider_Com[COLLIDER_CUBE_AABB]);
+	Safe_Release(m_pEffectPlayerMove);
+	Safe_Release(m_pDWCameraTranformCom);
+	//Safe_Release(m_pCamera);
+
+	__super::Free();
+}

@@ -1,0 +1,31 @@
+#pragma once
+
+#include"UI_Base.h"
+
+BEGIN(Client)
+
+class CUI_Player final : public CUI_Base
+{
+private:
+	CUI_Player(LPDIRECT3DDEVICE9 pGraphic_Device);
+	CUI_Player(const CUI_Base& rhs);
+	virtual ~CUI_Player() = default;
+
+public:
+	virtual HRESULT Initialize_Prototype();
+	virtual HRESULT Initialize(void* pArg);
+	virtual void Tick(_float fTimeDelta);
+	virtual void Late_Tick(_float fTimeDelta);
+	virtual HRESULT Render();
+
+private:
+	virtual HRESULT Add_Components() override;
+	virtual HRESULT Set_RenderState(_ulong lAphaRef = 0) override;
+	virtual HRESULT Reset_RenderState() override;
+public:
+	static	 CUI_Player* Create(LPDIRECT3DDEVICE9 pGraphic_Device);
+	virtual CGameObject* Clone(void* pArg) override;
+	virtual void Free() override;
+};
+
+END

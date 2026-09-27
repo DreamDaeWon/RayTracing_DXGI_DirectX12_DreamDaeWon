@@ -1,0 +1,56 @@
+#pragma once
+#include "Weapon.h"
+
+#define PUPA_RIHGT_VIEW_RIGHT 0.06f
+#define PUPA_RIHGT_VIEW_UP 0.02f
+#define PUPA_RIHGT_VIEW_BACK 0.1f
+#define PUPA_SHOOTING_TERM 0.5f
+#define PUPA_MAX_BULLET_NUM 30
+
+BEGIN(Engine)
+class CTexture;
+class CVIBuffer_Rect;
+END
+
+BEGIN(Client)
+/* 총 이미지 분석
+0-6 등에 매달고 있을 때 사용하는 이미지
+12-17?  조준 했을 때 반동표현하는 이미지
+*/
+class CWeapon_Pupa final : public CWeapon
+{
+	//public:
+	//	typedef struct tagEffectSplatDesc : public CEffect_Base::EFFECT_BASE_DESC {
+	//
+	//	}EFFECT_SPLAT_DESC;
+
+
+private:
+	CWeapon_Pupa(LPDIRECT3DDEVICE9 pGraphic_Device);
+	CWeapon_Pupa(const CWeapon_Pupa& rhs);
+	virtual ~CWeapon_Pupa() = default;
+
+public:
+	virtual HRESULT Initialize_Prototype() override;
+	virtual HRESULT Initialize(void* pArg) override;
+	virtual _uint Tick(_float fTimeDelta) override;
+
+	virtual HRESULT Clone_Bullet() override;
+
+
+public:
+	void Shot_Bullet();
+
+private:
+	HRESULT Add_Components();
+
+	class CSplat_Default* m_pEffect = { nullptr };
+
+
+public:
+	static CWeapon_Pupa* Create(LPDIRECT3DDEVICE9 pGraphic_Device);
+	virtual CGameObject* Clone(void* pArg);
+	virtual void Free() override;
+};
+
+END

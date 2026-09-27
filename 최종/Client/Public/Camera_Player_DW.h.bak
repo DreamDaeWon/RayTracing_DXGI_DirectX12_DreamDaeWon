@@ -1,0 +1,145 @@
+#pragma once
+
+#include "Camera.h"
+#include "Client_Defines.h"
+#include <random>
+
+BEGIN(Client)
+class CCamera_Player_DW final : public CCamera
+{
+public:
+    typedef struct tagCameraPlayerDesc : public CCamera::CAMERA_DESC
+    {
+        class CPlayer* pPlayer = { nullptr };
+        _float      fMouseSensor = { 1.f };
+        _uint      iLevel = { 0 };
+    }CAMERA_PLAYER_DW_DESC;
+
+public:
+    enum CAMERA_MODE { CAMERA_3VIEW, CAMERA_FREE, CAMERA_1VIEW,  CAMERA_QUTER, CAMERA_PLAYER_RIGHT_VIEW, CAMERA_BOSS, CAMERA_BOSS_END, CAMERA_END };
+
+private:
+    CCamera_Player_DW(LPDIRECT3DDEVICE9 pGrahpic_Device);
+    CCamera_Player_DW(const CCamera_Player_DW& rhs);
+    virtual ~CCamera_Player_DW() = default;
+
+public:
+    virtual HRESULT Initialize_Prototype() override;
+    virtual HRESULT Initialize(void* pArg) override;
+    virtual _uint Tick(_float fTimeDelta) override;
+    virtual void Late_Tick(_float fTimeDelta) override;
+    _uint Get_Camera_Mode()
+    { 
+        if (m_eCamera_Mode == CAMERA_QUTER)
+        {
+            m_eCamera_Mode = 0;
+        }
+        return m_eCamera_Mode; 
+    }
+
+    void Set_Camera_Mode(_uint _Mode)
+    {
+        m_eCamera_Mode = _Mode;
+    }
+
+    void SetCameraShaking(_bool _bShake)
+    {
+        m_bShake = _bShake;
+    }
+    
+    void SetCameraRebound(_float fSize,_float fSpeed)
+    {
+        m_bRebound = true;
+        m_fReboundSize = fSize;
+        m_fReboundSpeed = fSpeed;
+    }
+
+    _bool Get_CanShotBullet() { return m_bCanShotBullet; }
+
+    void Set_CameraTrapLevelUp(_bool _CameraUp) { m_bCameraTrapLevelUp = _CameraUp; } // 카메라를 올릴건지?(트렙 레벨에서)
+
+    _bool Get_CameraTrapLevelUp() { return m_bCameraTrapLevelUp; }
+
+private:
+    void Camera_Free_Mode(_float fTimeDelta);
+    void Camera_3View_Mode(_float fTimeDelta);
+    void Camera_1View_Mode(_float fTimeDelta);
+    void Camera_Quter_Mode(_float fTimeDelta);
+    void Camera_ZOOM_Mode(_float fTimeDelta);
+    void Camera_Player_Right(_float fTimeDelta);
+    void Camera_Shaking(_float fTimeDelta);
+    void Camera_Rebound(_float fTimeDelta);
+
+    // 엔딩 시네마틱 함수
+    void Camera_Boss_End(_float fTimeDelta);
+    
+    //For. Collision
+private:
+    void Wall_Collision();
+
+private:
+    class CTransform* m_pPlayerTransform = { nullptr };
+    class CPlayer* m_pPlayer = { nullptr };
+
+private:
+    // 엔딩시네마틱 변수
+    enum BOSS_END_CAMERA {BOSS_END_READY_LOOK_BOSS, BOSS_END_LOOK_BOSS, BOSS_END_READY_LOOK_PLAYER, BOSS_END_LOOK_PLAYER,
+    BOSS_END_ZOOM_OUT_READY, BOSS_END_ZOOM_OUT,BOSS_END_LOOK_UP, BOSS_END_SHOW_CREADIT};
+
+    BOSS_END_CAMERA m_eBoss_End_Camera_Now_State = { BOSS_END_READY_LOOK_BOSS };
+
+    _float m_fBossEndTime = { 0.f }; // 보스 죽고나서 엔딩에서 사용할 시간값.
+    //========================================================================================
+
+private:
+
+    _bool m_bCanShotBullet = { false }; // 총을 쏠 수 있는 상태인지 아닌지?
+
+    _bool m_bCameraTrapLevelUp = { false }; // 함정레벨에서 카메라를 올리는 트리거를 밟았는지?
+
+    POINT m_ptMouse = { 0,0 };
+    _float m_fMouseSensor = 0.1f;
+    _uint m_eCamera_Mode = CAMERA_3VIEW; // 현재 카메라 모드
+    _float m_fBeforeFov = { 60.f };
+    _float m_fCamera_Change_Time = { 0.f }; // 카메라 체인지 시간
+    _float m_fZoomFov = { 0.f }; // 줄일 카메라 각도(얼마나 줌 할껀지)
+     _uint m_eBeforeCameraMode = CAMERA_3VIEW; // 이전 카메라 모드
+    _float m_fCamera_Player_Right_Time = { 0.f }; // 카메라 플레이어 오른쪽으로 가는 체인지 시간
+    _bool m_bViewChange = { false };
+    _bool m_bZoom = { false };
+    _float3 m_vBefore_Distance_Away = { 0.f,0.f,0.f }; // 카메라가 플레이어 오른쪽으로 가기 전 플레이어와 카메라가 떨어진 거리
+    _float3 m_vDistance_Away = { 0.f,0.f,0.f }; // 플레이어와 카메라가 떨어진 거리
+
+    _float m_f3ViewUp = { 0.f }; // 3인칭 뷰일 때 얼마나 위로 보낼건지?
+    _float m_f3ViewBack = { 0.f }; // 3인칭 뷰일 때 얼마나 뒤로 보낼건지?
+
+    _float m_fRightViewRight = { 0.f }; // Right뷰일 때 얼마나 오른쪽으로 보낼건지?
+    _float m_fRightViewUp = { 0.f }; // Right뷰일 때 얼마나 위쪽으로 보낼건지?
+    _float m_fRightViewBack = { 0.f }; // Right뷰일 때 얼마나 뒤로 보낼건지?
+    _float m_fAngle = { 0.f }; // Right뷰일 때 얼마나 돌려야 하는지?
+    _float m_fRightViewChangeTime = { 0.5f }; // 얼만큼의 시간동안 시점 변환을 진행할 건지?
+    _float m_fRightViewUpTime = { 0.05f }; // 얼만큼의 시간을 매 틱 마다 더해줄 건지?
+    _float3 m_vBeforeLook = {}; // 3인칭에서 딱 눌렀을 때 룩벡터를 저장
+    _float3 m_vBeforeRight = {}; // 3인칭에서 딱 눌렀을 때 롸이트벡터를 저장
+
+    // 셰이킹 함수
+    _float3 m_vShakeBeforePos = {}; // 이전 위치
+    _bool m_bShake = { false }; // 셰이킹 효과 사용중
+    _bool m_bRebound = { false }; // 반동 효과 사용중
+    _float m_fShakeSize = {0.05f}; // 셰이킹 강도
+    _float m_fReboundTime = { 0.f };
+    //if 샷건 예시
+    _float m_fReboundSize = {2.f}; // 반동 효과 강도
+    _float m_fReboundSpeed = { 6.f };
+    //if 따발총 예시
+    //_float m_fReboundSize = { 1.f }; // 반동 효과 강도
+    //_float m_fReboundSpeed = { 20.f };
+
+public:
+    static CCamera_Player_DW* Create(LPDIRECT3DDEVICE9 pGraphic_Device);
+    virtual CGameObject* Clone(void* pArg) override;
+    virtual void Free() override;
+
+};
+
+END

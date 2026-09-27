@@ -1,0 +1,440 @@
+#include "pch.h"
+#include "GameInstance.h"
+#include "IceSplinter.h"
+#include "RedCircle.h"
+#include "Camera_Player_DW.h"
+#include "Player.h"
+
+CIceSplinter::CIceSplinter(LPDIRECT3DDEVICE9 pGraphic_Device) :
+	CLandObject(pGraphic_Device)
+{
+}
+
+CIceSplinter::CIceSplinter(const CIceSplinter& rhs) :
+	CLandObject(rhs)
+{
+}
+
+HRESULT CIceSplinter::Initialize_Prototype()
+{
+	if (FAILED(__super::Initialize_Prototype()))
+	{
+		MSG_BOX(TEXT("Failed to Initialize_Prototype : __super,CIceSplinter"));
+		return E_FAIL;
+	}
+
+	return S_OK;
+}
+
+HRESULT CIceSplinter::Initialize(void* pArg)
+{
+	if (pArg != nullptr)
+	{
+		// 스노우 정보 받아오기
+		ICE_SPLINTER_DESC* Ice_Splinter_Desc = (ICE_SPLINTER_DESC*)pArg;
+
+		m_vBossPos = Ice_Splinter_Desc->m_vPos;
+		m_fScale = Ice_Splinter_Desc->m_fScale;
+		m_iLifeTime = Ice_Splinter_Desc->m_iLifeTime;
+		m_vLook = Ice_Splinter_Desc->m_vLook;
+		m_fSpeed = Ice_Splinter_Desc->m_fSpeed;
+
+		D3DXVec3Normalize(&m_vLook, &m_vLook);
+		m_vLook = m_vLook * m_fSpeed;
+		// 랜드 오브젝트 정보 받아오기
+		LANDOBJECT_DESC* pLandObjectDesc = (LANDOBJECT_DESC*)pArg;
+		pLandObjectDesc->fSpeedPerSec = 1.f;
+		pLandObjectDesc->fRotationPerSec = D3DXToRadian(90.f);
+
+	}
+	/*else
+	{
+		MSG_BOX(TEXT("Failed to Initialize : pArg == nullptr CIceSplinter"));
+		return E_FAIL;
+	}*/
+
+	if (FAILED(__super::Initialize(pArg)))
+	{
+
+		MSG_BOX(TEXT("Failed to Initialize : __super,CIceSplinter"));
+		return E_FAIL;
+	}
+
+	if (FAILED(Add_Components()))
+	{
+		MSG_BOX(TEXT("Failed to Add_Components : __super,CIceSplinter"));
+		return E_FAIL;
+	}
+
+	//m_pTransform->Set_State(CTransform::STATE_RIGHT, m_pTransform->Get_State(CTransform::STATE_RIGHT) * 5);
+	//m_pTransform->Set_State(CTransform::STATE_UP, m_pTransform->Get_State(CTransform::STATE_UP) * 5);
+	//m_pTransform->Set_State(CTransform::STATE_LOOK, m_pTransform->Get_State(CTransform::STATE_LOOK) * 5);
+	//m_pCollider_Com->Set_Scale(m_pTransform->Get_Scale());
+
+
+	//m_pTransform->Turn(m_pTransform->Get_State(CTransform::STATE_RIGHT), 5.f);
+
+
+	m_pTransform->Set_State(CTransform::STATE_LOOK, m_pTransform->Get_State(CTransform::STATE_LOOK));
+	m_pTransform->Set_State(CTransform::STATE_RIGHT, m_pTransform->Get_State(CTransform::STATE_RIGHT) * m_fScale);
+	m_pTransform->Set_State(CTransform::STATE_UP, m_pTransform->Get_State(CTransform::STATE_UP) * m_fScale * 2);
+	m_pTransform->Set_State(CTransform::STATE_POSITION, _float3(m_vBossPos.x, m_vBossPos.y - m_fScale * 2, m_vBossPos.z));
+	
+	m_pCollider_Com->Set_Scale(_float3(m_fScale, m_fScale, m_fScale));
+	
+	m_pCamera = dynamic_cast<CCamera_Player_DW*>(m_pGameInstance->Get_Object(LEVEL_STATIC, TEXT("Layer_Camera_Player")));
+	Safe_AddRef(m_pCamera);
+
+	return S_OK;
+}
+
+_uint CIceSplinter::Tick(_float fTimeDelta)
+{
+
+	if (m_bDead)
+	{
+		m_pCamera->SetCameraShaking(false);
+		return OBJECT_DEAD;
+	}
+
+	GoDown(fTimeDelta);
+
+	//m_pTransform->Set_State(CTransform::STATE_POSITION,
+	//	_float3(m_pTransform->Get_State(CTransform::STATE_POSITION).x + (m_vLook.x * m_fSpeed * fTimeDelta),
+	//		m_pTransform->Get_State(CTransform::STATE_POSITION).y + (m_vLook.y * m_fSpeed * fTimeDelta),
+	//		m_pTransform->Get_State(CTransform::STATE_POSITION).z + m_vLook.z * m_fSpeed * fTimeDelta));
+
+
+
+	__super::Tick(fTimeDelta);
+
+	m_pCollider_Com->Update_Collider_Info(*m_pTransform->Get_WorldMatrix());
+
+	return OBJECT_NOTHING;
+}
+
+void CIceSplinter::Late_Tick(_float fTimeDelta)
+{
+	if (0 == m_iLifeTime)
+		Set_Dead();
+
+	__super::Late_Tick(fTimeDelta);
+
+	SetUp_BillBoard();
+
+	Collision_Player();
+
+	m_pGameInstance->Add_RenderObject(CRenderer::RENDER_NONBLEND, this);
+}
+
+HRESULT CIceSplinter::Render()
+{
+	//if (FAILED(__super::Render()))
+	//{
+	//	MSG_BOX(TEXT("Failed to Render : __super,CPlayer"));
+	//	return E_FAIL;
+	//}
+
+	if (FAILED(m_pTransform->Bind_WorldMatrix()))
+	{
+		MSG_BOX(TEXT("Failed to Bind_WorldMatrix : Render"));
+		return E_FAIL;
+	}
+	if (FAILED(m_pTextureCom->Bind_Texture(0, m_iTexNum)))
+	{
+		MSG_BOX(TEXT("Failed to Bind_Texture : Render"));
+		return E_FAIL;
+	}
+	//m_pGraphic_Device->SetRenderState(D3DRS_FILLMODE, D3DFILL_WIREFRAME);
+	if (FAILED(Set_RenderState()))
+	{
+		MSG_BOX(TEXT("Failed to Set_RenderState : Render"));
+		return E_FAIL;
+	}
+	if (FAILED(m_pVIBuffer_Com->Render()))
+	{
+		MSG_BOX(TEXT("Failed to Render : Render"));
+		return E_FAIL;
+	}
+	if (FAILED(Reset_RenderState()))
+	{
+		MSG_BOX(TEXT("Failed to Reset_RenderState : Render"));
+		return E_FAIL;
+	}
+
+
+	return S_OK;
+}
+
+void CIceSplinter::Return_Look_Position(_float3* pvLook, _float3* pvPosition)
+{
+	*pvLook = m_pTransform->Get_State(CTransform::STATE_LOOK);
+	*pvPosition = m_pTransform->Get_State(CTransform::STATE_POSITION);
+}
+
+_float3 CIceSplinter::Return_ViewPort_Pos()
+{
+	_float3 vPosition = m_pTransform->Get_State(CTransform::STATE_POSITION);
+
+	_float4x4 ViewMatrix, ProjectionMatrix;
+
+	m_pGraphic_Device->GetTransform(D3DTS_VIEW, &ViewMatrix);
+	m_pGraphic_Device->GetTransform(D3DTS_PROJECTION, &ProjectionMatrix);
+
+	vPosition = *D3DXVec3TransformCoord(&vPosition, &vPosition, &ViewMatrix);
+	vPosition = *D3DXVec3TransformCoord(&vPosition, &vPosition, &ProjectionMatrix);
+
+	vPosition.x = vPosition.x * g_iWinSizeX * 0.5f + g_iWinSizeX * 0.5f;
+	vPosition.y = vPosition.y * g_iWinSizeY * 0.5f + g_iWinSizeY * 0.5f;
+
+	return vPosition;
+}
+
+HRESULT CIceSplinter::Add_Components()
+{	/* For.Com_VIBuffer */
+	if (FAILED(__super::Add_Component(LEVEL_STATIC, TEXT("Prototype_Component_VIBuffer_Rect"), TEXT("Com_VIBuffer"), reinterpret_cast<CComponent**>(&m_pVIBuffer_Com))))
+	{
+		MSG_BOX(TEXT("Failed to Prototype_Component_VIBuffer_Rect : Add_Components"));
+		return E_FAIL;
+	}
+
+	/* For.Com_Texture */
+	//if (FAILED(__super::Add_Component(LEVEL_TUTORIAL, TEXT("Prototype_Component_Texture_PlayerBack"), TEXT("Com_Texture"), reinterpret_cast<CComponent**>(&m_pTextureCom))))
+	//{
+	//	MSG_BOX(TEXT("Failed to Prototype_Component_Texture_PlayerBack : Add_Components"));
+	//	return E_FAIL;
+	//}
+	/* For.Com_Texture */
+	if (FAILED(__super::Add_Component(g_eLevel, TEXT("Prototype_Component_Texture_IceSplinter"), TEXT("Com_Texture"), reinterpret_cast<CComponent**>(&m_pTextureCom))))
+	{
+		MSG_BOX(TEXT("Failed to Prototype_Component_Texture_IceSplinter : Add_Components"));
+		return E_FAIL;
+	}
+
+	//콜라이더 실험 BEGIN.
+	if (FAILED(__super::Add_Component(LEVEL_STATIC, TEXT("Prototype_Component_Collider_Sphere"), TEXT("Com_Collider"), reinterpret_cast<CComponent**>(&m_pCollider_Com))))
+	{
+		MSG_BOX(TEXT("Failed to Prototype_Component_Collider_Sphere : Add_Components"));
+		return E_FAIL;
+	}
+	//콜라이더 실험 END.
+	return S_OK;
+}
+
+HRESULT CIceSplinter::Set_RenderState()
+{
+	if (FAILED(m_pGraphic_Device->SetRenderState(D3DRS_ALPHATESTENABLE, TRUE)))
+	{
+		MSG_BOX(TEXT("Failed to SetRenderState : D3DRS_ALPHATESTENABLE"));
+		return E_FAIL;
+	}
+	if (FAILED(m_pGraphic_Device->SetRenderState(D3DRS_ALPHAREF, 128)))
+	{
+		MSG_BOX(TEXT("Failed to SetRenderState : D3DRS_ALPHAREF"));
+		return E_FAIL;
+	}
+	if (FAILED(m_pGraphic_Device->SetRenderState(D3DRS_ALPHAFUNC, D3DCMP_GREATER)))
+	{
+		MSG_BOX(TEXT("Failed to SetRenderState : D3DRS_ALPHAFUNC"));
+		return E_FAIL;
+	}
+
+	//m_pGraphic_Device->SetRenderState(D3DRS_CULLMODE, D3DCULL_NONE);
+
+	return S_OK;
+}
+
+HRESULT CIceSplinter::Reset_RenderState()
+{
+	if (FAILED(m_pGraphic_Device->SetRenderState(D3DRS_ALPHATESTENABLE, FALSE)))
+	{
+		MSG_BOX(TEXT("Failed to SetRenderState : D3DRS_ALPHATESTENABLE"));
+		return E_FAIL;
+	}
+
+	if (FAILED(m_pGraphic_Device->SetSamplerState(0, D3DSAMP_MINFILTER, D3DTEXF_LINEAR)))
+	{
+		MSG_BOX(TEXT("Failed to SetSamplerState : D3DSAMP_MINFILTER"));
+		return E_FAIL;
+	}
+	if (FAILED(m_pGraphic_Device->SetSamplerState(0, D3DSAMP_MAGFILTER, D3DTEXF_LINEAR)))
+	{
+		MSG_BOX(TEXT("Failed to SetSamplerState : D3DSAMP_MAGFILTER"));
+		return E_FAIL;
+	}
+	if (FAILED(m_pGraphic_Device->SetSamplerState(0, D3DSAMP_MIPFILTER, D3DTEXF_LINEAR)))
+	{
+		MSG_BOX(TEXT("Failed to SetSamplerState : D3DSAMP_MIPFILTER"));
+		return E_FAIL;
+	}
+
+	return S_OK;
+}
+
+void CIceSplinter::SetUp_BillBoard()
+{
+	//CTransform* pCameraTransformCom = dynamic_cast<CTransform*>(m_pGameInstance->Get_Component(LEVEL_TUTORIAL, TEXT("Layer_Camera_Free"), g_strTransformTag));
+	//CTransform* pCameraTransformCom = dynamic_cast<CTransform*>(m_pGameInstance->Get_Component(g_eLevel, TEXT("Layer_Camera_Player"), g_strTransformTag));
+	if (nullptr == m_pCameraTransformCom)
+	{
+		m_pCameraTransformCom = dynamic_cast<CTransform*>(m_pGameInstance->Get_Component(LEVEL_STATIC, TEXT("Layer_Camera_Player"), g_strTransformTag));
+		if (nullptr != m_pCameraTransformCom)
+			Safe_AddRef(m_pCameraTransformCom);
+	}
+
+	if (nullptr == m_pCameraTransformCom)
+	{
+		MSG_BOX(TEXT("nullptr == m_pCameraTransformCom : CIceSplinter::SetUp_BillBoard()"));
+		return;
+	}
+
+	const _float4x4 pCameraWorldMatrix = *m_pCameraTransformCom->Get_WorldMatrix();
+
+
+	_float3 vScale = m_pTransform->Get_Scale();
+
+	m_pTransform->Set_State(CTransform::STATE_RIGHT, *D3DXVec3Normalize((_float3*)&pCameraWorldMatrix.m[CTransform::STATE_RIGHT][0], (_float3*)&pCameraWorldMatrix.m[CTransform::STATE_RIGHT][0]) * vScale.x);
+	//m_pTransform->Set_State(CTransform::STATE_UP, *D3DXVec3Normalize((_float3*)&pCameraWorldMatrix.m[CTransform::STATE_UP][0], (_float3*)&pCameraWorldMatrix.m[CTransform::STATE_UP][0]) * vScale.y);
+	m_pTransform->Set_State(CTransform::STATE_LOOK, *D3DXVec3Normalize((_float3*)&pCameraWorldMatrix.m[CTransform::STATE_LOOK][0], (_float3*)&pCameraWorldMatrix.m[CTransform::STATE_LOOK][0]) * vScale.z);
+
+	/*m_pTransform->Set_State(CTransform::STATE_RIGHT, *(_float3*)&pCameraWorldMatrix.m[CTransform::STATE_RIGHT][0]);
+	m_pTransform->Set_State(CTransform::STATE_LOOK, *(_float3*)&pCameraWorldMatrix.m[CTransform::STATE_LOOK][0]);*/
+}
+
+void CIceSplinter::Look_Camera_Fixed_Y_Axis()
+{
+	//CTransform* pCameraTransformCom = dynamic_cast<CTransform*>(m_pGameInstance->Get_Component(LEVEL_TUTORIAL, TEXT("Layer_Camera_Free"), g_strTransformTag));
+	//CTransform* pCameraTransformCom = dynamic_cast<CTransform*>(m_pGameInstance->Get_Component(g_eLevel, TEXT("Layer_Camera_Player"), g_strTransformTag));
+	if (nullptr == m_pCameraTransformCom)
+	{
+		m_pCameraTransformCom = dynamic_cast<CTransform*>(m_pGameInstance->Get_Component(LEVEL_STATIC, TEXT("Layer_Camera_Player"), g_strTransformTag));
+		if (nullptr != m_pCameraTransformCom)
+			Safe_AddRef(m_pCameraTransformCom);
+	}
+
+	if (nullptr == m_pCameraTransformCom)
+	{
+		MSG_BOX(TEXT("nullptr == m_pCameraTransformCom : CIceSplinter::SetUp_BillBoard()"));
+		return;
+	}
+
+	const _float4x4 pCameraWorldMatrix = *m_pCameraTransformCom->Get_WorldMatrix();
+	_float3 vCameraPos = m_pCameraTransformCom->Get_State(CTransform::STATE_POSITION);
+
+	_float3 vScale = m_pTransform->Get_Scale();
+
+	//_float3 vLook = vCameraPos - m_pTransform->Get_State(CTransform::STATE_POSITION);
+	_float3 vLook = m_pTransform->Get_State(CTransform::STATE_POSITION) - vCameraPos;
+	//vLook = *D3DXVec3Normalize(&vLook, &vLook) * vScale.z;
+	_float3 vUp = { 0.f,1.f,0.f };
+	vUp *= vScale.y;
+	_float3 vRight = *D3DXVec3Cross(&vRight, &vUp, &vLook);
+	vRight = *D3DXVec3Normalize(&vRight, &vRight) * vScale.x;
+	vLook = *D3DXVec3Cross(&vLook, &vRight, &vUp);
+	vLook = *D3DXVec3Normalize(&vLook, &vLook) * vScale.z;
+
+	m_pTransform->Set_State(CTransform::STATE_RIGHT, vRight);
+	m_pTransform->Set_State(CTransform::STATE_UP, vUp);
+	m_pTransform->Set_State(CTransform::STATE_LOOK, vLook);
+
+
+}
+
+void CIceSplinter::GoDown(_float fTimeDelta)
+{
+	switch (m_iSkill)
+	{
+	case 0:
+		if (m_fTime <= 0.2f) // 대기 시간
+		{
+			m_pCamera->SetCameraShaking(false);
+		}
+		else
+		{
+			m_pTransform->Set_State(CTransform::STATE_POSITION,
+				_float3(m_pTransform->Get_State(CTransform::STATE_POSITION).x + m_vLook.x,
+					0.f - m_fScale * 2,
+					m_pTransform->Get_State(CTransform::STATE_POSITION).z + m_vLook.z));
+
+			CRedCircle::RED_CIRCLE_DESC RedCircleDesc = {};
+
+			RedCircleDesc.pTerrainTranformCom = dynamic_cast<CTransform*>(m_pGameInstance->Get_Component(g_eLevel, TEXT("Layer_Terrain"), g_strTransformTag.c_str()));
+			RedCircleDesc.pTerrainVIBufferCom = dynamic_cast<CVIBuffer_Terrain*>(m_pGameInstance->Get_Component(g_eLevel, TEXT("Layer_Terrain"), TEXT("Com_VIBuffer")));
+
+			_float4x4 WorldMatrix = *m_pTransform->Get_WorldMatrix();
+
+			RedCircleDesc.m_vPos = m_pTransform->Get_State(CTransform::STATE_POSITION);
+			RedCircleDesc.m_fLifeTime = 0.3f;
+			RedCircleDesc.m_fScale = m_fScale;
+
+			m_pGameInstance->Add_Clone(g_eLevel, TEXT("Layer_Red_Circle"), TEXT("Prototype_GameObject_Red_Circle"), &RedCircleDesc);
+			m_fTime = 0.f;
+
+			++m_iSkill;
+		}
+		break;
+	case 1:
+		if (m_fTime <= 0.3f) // 나올곳에 주의표시 하는 곳
+		{
+
+		}
+		else if (m_fTime <= 0.5f)// 나오는 곳
+		{
+			m_pCamera->SetCameraShaking(true);
+			m_pTransform->Go_Up(m_fUpSpeed * fTimeDelta * m_fScale);
+		}
+		else
+		{
+			//m_pTransform->Go_Down(m_fUpSpeed * m_fScale * 2);
+			m_fTime = 0.f;
+			m_iSkill = 0;
+			m_iLifeTime--;
+		}
+		break;
+
+	default:
+		break;
+	}
+
+	m_fTime += fTimeDelta; // 시간을 구함
+}
+
+
+CIceSplinter* CIceSplinter::Create(LPDIRECT3DDEVICE9 pGraphic_Device)
+{
+	CIceSplinter* pInstance = new CIceSplinter(pGraphic_Device);
+	if (FAILED(pInstance->Initialize_Prototype()))
+	{
+		MSG_BOX(TEXT("Faild to Created : CIceSplinter"));
+
+		Safe_Release(pInstance);
+	}
+
+	return pInstance;
+}
+
+CGameObject* CIceSplinter::Clone(void* pArg)
+{
+	CIceSplinter* pInstance = new CIceSplinter(*this);
+	if (FAILED(pInstance->Initialize(pArg)))
+	{
+		MSG_BOX(TEXT("Faild to Cloned : CIceSplinter"));
+
+		Safe_Release(pInstance);
+	}
+
+	return pInstance;
+}
+
+void CIceSplinter::Free()
+{
+	Safe_Release(m_pVIBuffer_Com);
+	Safe_Release(m_pTextureCom);
+
+	//콜라이더 실험 BEGIN
+	Safe_Release(m_pCollider_Com);
+	//콜라이더 실험 END.
+	Safe_Release(m_pCamera);
+	Safe_Release(m_pCameraTransformCom);
+	__super::Free();
+}

@@ -1,0 +1,654 @@
+#include "GameInstance.h"
+#include "Graphic_Device.h"
+#include "Level_Manager.h"
+#include "ObjectManager.h"
+#include "Renderer.h"
+#include "Timer_Manager.h"
+#include "Picking.h"
+#include "Font_Manager.h"
+#include "Key_Manager.h"
+#include "Collision_Manager.h"
+
+IMPLEMENT_SINGLETON(CGameInstance)
+
+CGameInstance::CGameInstance()
+{
+}
+
+HRESULT CGameInstance::Initialize_Engine(_uint iNumLevels,const ENGINE_DESC& EngineDesc, LPDIRECT3DDEVICE9* ppGraphic_Device)
+{
+	//그래픽 디바이스 초기화
+
+	m_pGraphic_Device = CGraphic_Device::Create(EngineDesc.hWnd, EngineDesc.iWinSizeX, EngineDesc.iWinSizeY, ppGraphic_Device);
+	if (nullptr == m_pGraphic_Device)
+	{
+		MSG_BOX(TEXT("Failed to Create : CGraphic_Device"));
+		return E_FAIL;
+	}
+
+	m_pPicking = CPicking::Create(*ppGraphic_Device, EngineDesc.hWnd, EngineDesc.iWinSizeX, EngineDesc.iWinSizeY);
+	if (nullptr == m_pPicking)
+	{
+		MSG_BOX(TEXT("Failed to Create : CPicking"));
+		return E_FAIL;
+	}
+
+	m_pFont_Manager = CFont_Manager::Create(*ppGraphic_Device);
+	if (nullptr == m_pFont_Manager)
+	{
+		MSG_BOX(TEXT("Failed to Create : CFont_Manager"));
+		return E_FAIL;
+	}
+
+	m_pKey_Manager = CKey_Manager::Create();
+	if (nullptr == m_pKey_Manager)
+	{
+		MSG_BOX(TEXT("Failed to Create : CKey_Manager"));
+		return E_FAIL;
+	}
+
+	m_pTimer_Manager = CTimer_Manager::Create();
+	if (nullptr == m_pTimer_Manager)
+	{
+		MSG_BOX(TEXT("Failed to Create : m_pTimer_Manager"));
+		return E_FAIL;
+	}
+
+	m_pRenderer = CRenderer::Create(*ppGraphic_Device);
+	if (nullptr == m_pRenderer)
+	{
+		MSG_BOX(TEXT("Failed to Create : CRenderer"));
+		return E_FAIL;
+	}
+
+
+	m_pLevel_Manager = CLevel_Manager::Create();
+	if (nullptr == m_pLevel_Manager)
+	{
+		MSG_BOX(TEXT("Failed to Create : CLevel_Manager"));
+		return E_FAIL;
+	}
+
+
+
+	/* 인풋 디바이스를 초기화한다 .*/
+
+	/* 사운드 디바이스를 초기화한다 .*/
+	m_pSound_Manager = CSound_Manager::Create();
+	if (nullptr == m_pSound_Manager)
+	{
+		MSG_BOX(TEXT("Failed to Create : CSound_Manager"));
+		return E_FAIL;
+	}
+
+	/* 오브젝트 매니져의 공간 예약을 한다. */
+
+	m_pObject_Manager = CObjectManager::Create(iNumLevels);
+	if (nullptr == m_pObject_Manager)
+	{
+		MSG_BOX(TEXT("Failed to Create : CObjectManager"));
+		return E_FAIL;
+	}
+
+	/* 컴포넌트 매니져의 공간 예약을 한다. */
+	m_pComponent_Manager = CComponent_Manager::Create(iNumLevels);
+	if (nullptr == m_pComponent_Manager)
+	{
+		MSG_BOX(TEXT("Failed to Create : CComponent_Manager"));
+		return E_FAIL;
+	}
+
+	/* 콜리젼 매니져의 공간 예약을 한다. */
+	m_pCollision_Manager = CCollision_Manager::Create(*ppGraphic_Device);
+	if (nullptr == m_pCollision_Manager)
+	{
+		MSG_BOX(TEXT("Failed to Create : CCollision_Manager"));
+		return E_FAIL;
+	}
+
+	return S_OK;
+}
+
+HRESULT CGameInstance::Draw()
+{
+	if (nullptr == m_pGraphic_Device ||
+		nullptr == m_pLevel_Manager || 
+		nullptr == m_pRenderer)
+	{
+		MSG_BOX(TEXT("nullptr : m_pGraphic_Device or m_pLevel_Manager or m_pRenderer"));
+		return E_FAIL;
+	}
+
+	m_pGraphic_Device->Render_Begin();
+
+	/* 화면에 그려져야할 객체들을 그린다. == 오브젝트 매니져에 들어가있을꺼야 .*/
+	/* 오브젝트 매니져에 렌더함수를 만들어서 호출하면 객체들을 다 그린다. */
+
+	/* But. CRenderer객체의 렌더함수를 호출하여 객체를 그린다. */
+	
+
+	m_pRenderer->Render();
+	m_pLevel_Manager->Render();
+
+	m_pGraphic_Device->Render_End();
+
+	return S_OK;
+}
+
+void CGameInstance::Tick_Engine(_float fTimeDelta)
+{
+	if(nullptr == m_pLevel_Manager ||
+		nullptr == m_pObject_Manager||
+		nullptr == m_pPicking)
+	{
+		MSG_BOX(TEXT("nullptr : m_pLevel_Manager or m_pObject_Manager"));
+		return;
+	}
+
+	m_pObject_Manager->Tick(fTimeDelta);
+
+	m_pPicking->Update();
+
+	m_pObject_Manager->Late_Tick(fTimeDelta);
+	/* 반복적인 갱신이 필요한 객체들의 Tick함수를 호출한다. */
+	m_pLevel_Manager->Tick(fTimeDelta);
+
+
+}
+
+HRESULT CGameInstance::Clear(_uint iClearLevelIndex)
+{
+	/* 지정된 레벨용 자원(텍스쳐, 사운드, 객체등등) 을 삭제한다. */
+	if (nullptr == m_pComponent_Manager ||
+		nullptr == m_pObject_Manager)
+	{
+		MSG_BOX(TEXT("Failed to Clear : no address"));
+		return E_FAIL;
+	}
+
+	m_pComponent_Manager->Clear(iClearLevelIndex);
+	m_pObject_Manager->Clear(iClearLevelIndex);
+
+	return S_OK;
+}
+
+HRESULT CGameInstance::Open_Level(_uint eNextLevelID, CLevel* pLevel)
+{
+	if (nullptr == m_pLevel_Manager)
+	{
+		MSG_BOX(TEXT("nullptr : m_pLevel_Manager"));
+		return E_FAIL;
+	}
+
+	/* // 내가 짠 코드
+	 if(FAILED(m_pLevel_Manager->Open_Level(eNextLevelID, pLevel)))
+	{
+		MSG_BOX(TEXT("Failed to Open_Level : CGameInstance"));
+		return E_FAIL;
+	}
+	return S_OK;
+	*/
+	m_pRenderer->Render_Object_List_Clear();
+
+	return m_pLevel_Manager->Open_Level(eNextLevelID, pLevel);
+}
+
+_uint CGameInstance::Get_Level()
+{
+	return m_pLevel_Manager->Get_Layer();
+}
+
+HRESULT CGameInstance::Add_Prototype(const wstring& strPrototypeTag, CGameObject* pPrototype)
+{
+	if(nullptr == pPrototype)
+	{
+		MSG_BOX(TEXT("nullptr == pPrototype : CGameInstance::Add_Prototype"));
+		return E_FAIL;
+	}
+	if (nullptr == m_pObject_Manager)
+	{
+		MSG_BOX(TEXT("nullptr == m_pObject_Manager : CGameInstance::Add_Prototype"));
+		return E_FAIL;
+	}
+
+	return m_pObject_Manager->Add_Prototype(strPrototypeTag, pPrototype);
+}
+
+HRESULT CGameInstance::Add_Clone(_uint iLevelIndex, const wstring& strLayerTag, const wstring& strPrototypeTag, void* pArg)
+{
+	if (nullptr == m_pObject_Manager)
+	{
+		MSG_BOX(TEXT("nullptr == m_pObject_Manager : CGameInstance::Add_Clone"));
+		return E_FAIL;
+	}
+	return m_pObject_Manager->Add_Clone(iLevelIndex, strLayerTag, strPrototypeTag, pArg);
+}
+
+HRESULT CGameInstance::Add_Object(CGameObject* pGameObjcet, _uint iLevelIndex, const wstring& strLayerTag)
+{
+	if (nullptr == m_pObject_Manager)
+	{
+		MSG_BOX(TEXT("nullptr == m_pObject_Manager : CGameInstance::Add_Clone"));
+		return E_FAIL;
+	}
+	return m_pObject_Manager->Add_Object(pGameObjcet, iLevelIndex, strLayerTag);
+}
+
+CComponent* CGameInstance::Get_Component(_uint iLevelIndex, const wstring& strLayerTag, const wstring& strComTag, _uint iIndex)
+{
+	if (nullptr == m_pObject_Manager)
+	{
+		MSG_BOX(TEXT("nullptr == m_pObject_Manager : CGameInstance::Add_Clone"));
+		return nullptr;
+	}
+	return m_pObject_Manager->Get_Component(iLevelIndex, strLayerTag, strComTag, iIndex);
+}
+
+HRESULT CGameInstance::Get_Object(_uint iLevelIndex, const wstring& strLayerTag, CGameObject** ppObject, _uint iIndex)
+{
+	if (nullptr == m_pObject_Manager)
+	{
+		MSG_BOX(TEXT("nullptr == m_pObject_Manager : CGameInstance::Get_Object"));
+		return E_FAIL;
+	}
+	return m_pObject_Manager->Get_Object(iLevelIndex, strLayerTag, ppObject, iIndex);
+}
+
+CGameObject* CGameInstance::Get_Object(_uint iLevelIndex, const wstring& strLayerTag, _uint iIndex)
+{
+	if (nullptr == m_pObject_Manager)
+	{
+		MSG_BOX(TEXT("nullptr == m_pObject_Manager : CGameInstance::Get_Object"));
+		return nullptr;
+	}
+	return m_pObject_Manager->Get_Object(iLevelIndex, strLayerTag, iIndex);
+}
+
+list<class CGameObject*>* CGameInstance::Get_List(_uint iLevelIndex, const wstring& strLayerTag)
+{
+	if (nullptr == m_pObject_Manager)
+	{
+		MSG_BOX(TEXT("nullptr == m_pObject_Manager : CGameInstance::Get_List"));
+		return nullptr;
+	}
+	return m_pObject_Manager->Get_List(iLevelIndex, strLayerTag);
+}
+
+HRESULT CGameInstance::Add_Prototype(_uint iLevelIndex, const wstring& strPrototypeTag, CComponent* pPrototype)
+{
+	if (nullptr == m_pComponent_Manager)
+	{
+		MSG_BOX(TEXT("nullptr == m_pComponent_Manager : CGameInstance::Add_Prototype"));
+		return E_FAIL;
+	}
+
+	return m_pComponent_Manager->Add_Prototype(iLevelIndex, strPrototypeTag, pPrototype);
+}
+
+CComponent* CGameInstance::Clone_Component(_uint iLevelIndex, const wstring& strPrototypeTag, void* pArg)
+{
+	if (nullptr == m_pComponent_Manager)
+	{
+		MSG_BOX(TEXT("nullptr == m_pComponent_Manager : CGameInstance::Add_Prototype"));
+		return nullptr;
+	}
+
+	return m_pComponent_Manager->Clone_Component(iLevelIndex, strPrototypeTag, pArg);
+}
+
+HRESULT CGameInstance::Add_RenderObject(CRenderer::RENDER_GROUP eRenderGroup, CGameObject* pRenderObject)
+{
+	if (nullptr == m_pRenderer)
+	{
+		MSG_BOX(TEXT("nullptr == m_pRenderer : CGameInstance::Add_Clone"));
+		return E_FAIL;
+	}
+	return m_pRenderer->Add_RenderObject(eRenderGroup, pRenderObject);
+}
+
+void CGameInstance::Render_Object_List_Clear()
+{
+	if (nullptr == m_pRenderer)
+	{
+		MSG_BOX(TEXT("nullptr == m_pRenderer : CGameInstance::Add_Clone"));
+		return;
+	}
+	return m_pRenderer->Render_Object_List_Clear();
+}
+
+HRESULT CGameInstance::Add_Timer(const wstring& strTimerTag)
+{
+	if (nullptr == m_pTimer_Manager)
+	{
+		MSG_BOX(TEXT("nullptr == m_pTimer_Manager : CGameInstance::Add_Timer"));
+		return E_FAIL;
+	}
+
+	return m_pTimer_Manager->Add_Timer(strTimerTag);
+}
+
+_float CGameInstance::Compute_TimeDelta(const wstring& strTimerTag)
+{
+	if (nullptr == m_pTimer_Manager)
+	{
+		MSG_BOX(TEXT("nullptr == m_pTimer_Manager : CGameInstance::Add_Timer"));
+		return 0.f;
+	}
+
+	return m_pTimer_Manager->Compute_TimeDelta(strTimerTag);
+}
+
+void CGameInstance::Transform_PickingToLocalSpace(CTransform* pTransform, _float3* pRayDir, _float3* pRayPos)
+{
+	if (nullptr == m_pPicking)
+	{
+		MSG_BOX(TEXT("nullptr == m_pPicking : CGameInstance"));
+		return;
+	}
+	return m_pPicking->Transform_PickingToLocalSpace(pTransform, pRayDir, pRayPos);
+}
+
+void CGameInstance::Transform_PickingToLocalSpace(_float4x4 WorldMaxrixInv, _float3* pRayDir, _float3* pRayPos)
+{
+	if (nullptr == m_pPicking)
+	{
+		MSG_BOX(TEXT("nullptr == m_pPicking : CGameInstance"));
+		return;
+	}
+	return m_pPicking->Transform_PickingToLocalSpace(WorldMaxrixInv, pRayDir, pRayPos);
+}
+
+void CGameInstance::Get_World_Mouse_Ray(_float3* pRayDir, _float3* pRayPos)
+{
+	if (nullptr == m_pPicking)
+	{
+		MSG_BOX(TEXT("nullptr == m_pPicking : CGameInstance"));
+		return;
+	}
+	return m_pPicking->Get_World_Mouse_Ray(pRayDir, pRayPos);
+}
+
+HRESULT CGameInstance::Add_Font(const wstring& strFontTag, const wstring& strFontType, const _uint& iWidth, const _uint& iHeight, const _uint& iWeight)
+{
+	if (nullptr == m_pFont_Manager)
+	{
+		MSG_BOX(TEXT("nullptr == m_pFont_Manager : CGameInstance"));
+		return E_FAIL;
+	}
+	return m_pFont_Manager->Add_Font(strFontTag, strFontType, iWidth, iHeight, iWeight);
+}
+
+void CGameInstance::Render_Font(const wstring& strFontTag, const wstring& strText, const _float2* pPos, D3DXCOLOR Color)
+{
+	if (nullptr == m_pFont_Manager)
+	{
+		MSG_BOX(TEXT("nullptr == m_pFont_Manager : CGameInstance"));
+		return;
+	}
+	return m_pFont_Manager->Render_Font(strFontTag, strText, pPos, Color);
+}
+
+_bool CGameInstance::Key_Pressing(_uint _iKey)
+{
+	if (nullptr == m_pKey_Manager)
+	{
+		MSG_BOX(TEXT("nullptr == m_pKey_Manager : CGameInstance"));
+		return false;
+	}
+	return m_pKey_Manager->Key_Pressing(_iKey);
+}
+
+_bool CGameInstance::Key_Down(_uint _iKey)
+{
+	if (nullptr == m_pKey_Manager)
+	{
+		MSG_BOX(TEXT("nullptr == m_pKey_Manager : CGameInstance"));
+		return false;
+	}
+	return m_pKey_Manager->Key_Down(_iKey);
+}
+
+_bool CGameInstance::Key_Up(_uint _iKey)
+{
+	if (nullptr == m_pKey_Manager)
+	{
+		MSG_BOX(TEXT("nullptr == m_pKey_Manager : CGameInstance"));
+		return false;
+	}
+	return m_pKey_Manager->Key_Up(_iKey);
+}
+
+_bool CGameInstance::Collision_Rect_Ray(CCollider_Rect* pColliderRect, CTransform* pTransform, _float3 vRayDir, _float3 vRayPos)
+{
+	if (nullptr == m_pCollision_Manager)
+	{
+		MSG_BOX(TEXT("nullptr == m_pCollision_Manager : CGameInstance"));
+		return false;
+	}
+	return m_pCollision_Manager->Collision_Rect_Ray(pColliderRect, pTransform, vRayDir, vRayPos);
+}
+
+_bool CGameInstance::Collision_Rect_Ray(CCollider_Rect* pColliderRect, CTransform* pTransform, _float3 vRayDir, _float3 vRayPos, _float fLength)
+{
+	if (nullptr == m_pCollision_Manager)
+	{
+		MSG_BOX(TEXT("nullptr == m_pCollision_Manager : CGameInstance"));
+		return false;
+	}
+	return m_pCollision_Manager->Collision_Rect_Ray(pColliderRect, pTransform, vRayDir, vRayPos, fLength);
+}
+
+_bool CGameInstance::Collision_Rect_Ray_Same_Space(CCollider_Rect* pColliderRect, _float3 vRayDir, _float3 vRayPos)
+{
+	if (nullptr == m_pCollision_Manager)
+	{
+		MSG_BOX(TEXT("nullptr == m_pCollision_Manager : CGameInstance"));
+		return false;
+	}
+	return m_pCollision_Manager->Collision_Rect_Ray_Same_Space(pColliderRect, vRayDir, vRayPos);
+}
+
+_bool CGameInstance::Collision_Rect_Ray_Same_Space(CCollider_Rect* pColliderRect, _float3 vRayDir, _float3 vRayPos, _float fLength)
+{
+	if (nullptr == m_pCollision_Manager)
+	{
+		MSG_BOX(TEXT("nullptr == m_pCollision_Manager : CGameInstance"));
+		return false;
+	}
+	return m_pCollision_Manager->Collision_Rect_Ray_Same_Space(pColliderRect, vRayDir, vRayPos, fLength);
+}
+
+_bool CGameInstance::Collision_Rect_Ray_Same_Space(CCollider_Rect* pColliderRect, _float3 vRayDir, _float3 vRayPos, _float fLength, _float* pDistance)
+{
+	if (nullptr == m_pCollision_Manager)
+	{
+		MSG_BOX(TEXT("nullptr == m_pCollision_Manager : CGameInstance"));
+		return false;
+	}
+	return m_pCollision_Manager->Collision_Rect_Ray_Same_Space(pColliderRect, vRayDir, vRayPos, fLength, pDistance);
+}
+
+_bool CGameInstance::Collision_AABB(CCollider_Cube_AABB* pSrcColliderCubeAABB, CCollider_Cube_AABB* pDstColliderCubeAABB)
+{
+	if (nullptr == m_pCollision_Manager)
+	{
+		MSG_BOX(TEXT("nullptr == m_pCollision_Manager : CGameInstance"));
+		return false;
+	}
+	return m_pCollision_Manager->Collision_AABB(pSrcColliderCubeAABB, pDstColliderCubeAABB);
+}
+
+void CGameInstance::Collision_AABB_List(list<class CGameObject*>* pSrcObjectList, list<class CGameObject*>* pDstObjectList)
+{
+	if (nullptr == m_pCollision_Manager)
+	{
+		MSG_BOX(TEXT("nullptr == m_pCollision_Manager : CGameInstance"));
+		return;
+	}
+	return m_pCollision_Manager->Collision_AABB_List(pSrcObjectList, pDstObjectList);
+}
+
+void CGameInstance::Collision_AABB_List(list<class CGameObject*>* pSrcObjectList, list<class CGameObject*>* pDstObjectList, _float fSrcPower, _float fDstPower)
+{
+	if (nullptr == m_pCollision_Manager)
+	{
+		MSG_BOX(TEXT("nullptr == m_pCollision_Manager : CGameInstance"));
+		return;
+	}
+	return m_pCollision_Manager->Collision_AABB_List(pSrcObjectList, pDstObjectList, fSrcPower, fDstPower);
+}
+
+void CGameInstance::Collision_AABB_List_Fixed_Dst(list<class CGameObject*>* pSrcObjectList, list<class CGameObject*>* pDstObjectList, _float fTimeDelta)
+{
+	if (nullptr == m_pCollision_Manager)
+	{
+		MSG_BOX(TEXT("nullptr == m_pCollision_Manager : CGameInstance"));
+		return;
+	}
+	return m_pCollision_Manager->Collision_AABB_List_Fixed_Dst(pSrcObjectList, pDstObjectList, fTimeDelta);
+}
+
+_bool CGameInstance::Collision_Sphere(CCollider_Sphere* pSrcColliderSphere, CCollider_Sphere* pDstColliderSphere)
+{
+	if (nullptr == m_pCollision_Manager)
+	{
+		MSG_BOX(TEXT("nullptr == m_pCollision_Manager : CGameInstance"));
+		return false;
+	}
+	return m_pCollision_Manager->Collision_Sphere(pSrcColliderSphere, pDstColliderSphere);
+}
+
+_bool CGameInstance::Collision_AABB_Dot(CCollider_Cube_AABB* pColliderCubeAABB, _float3 vPosition)
+{
+	if (nullptr == m_pCollision_Manager)
+	{
+		MSG_BOX(TEXT("nullptr == m_pCollision_Manager : CGameInstance"));
+		return false;
+	}
+	return m_pCollision_Manager->Collision_AABB_Dot(pColliderCubeAABB, vPosition);
+}
+
+void CGameInstance::Collision_AABB_Dst_Dot_List(list<class CGameObject*>* pSrcObjectList, list<class CGameObject*>* pDstObjectList)
+{
+	if (nullptr == m_pCollision_Manager)
+	{
+		MSG_BOX(TEXT("nullptr == m_pCollision_Manager : CGameInstance"));
+		return;
+	}
+	return m_pCollision_Manager->Collision_AABB_Dst_Dot_List(pSrcObjectList, pDstObjectList);
+}
+
+int CGameInstance::VolumeUp(CSound_Manager::CHANNELID eID, _float _vol)
+{
+	if (nullptr == m_pSound_Manager)
+	{
+		MSG_BOX(TEXT("nullptr == m_pSound_Manager : CGameInstance"));
+		return 0;
+	}
+	return m_pSound_Manager->VolumeUp(eID, _vol);
+}
+
+int CGameInstance::VolumeDown(CSound_Manager::CHANNELID eID, _float _vol)
+{
+	if (nullptr == m_pSound_Manager)
+	{
+		MSG_BOX(TEXT("nullptr == m_pSound_Manager : CGameInstance"));
+		return 0;
+	}
+	return m_pSound_Manager->VolumeDown(eID, _vol);
+}
+
+int CGameInstance::BGMVolumeUp(_float _vol)
+{
+	if (nullptr == m_pSound_Manager)
+	{
+		MSG_BOX(TEXT("nullptr == m_pSound_Manager : CGameInstance"));
+		return 0;
+	}
+	return m_pSound_Manager->BGMVolumeUp(_vol);
+}
+
+int CGameInstance::BGMVolumeDown(_float _vol)
+{
+	if (nullptr == m_pSound_Manager)
+	{
+		MSG_BOX(TEXT("nullptr == m_pSound_Manager : CGameInstance"));
+		return 0;
+	}
+	return m_pSound_Manager->BGMVolumeDown(_vol);
+}
+
+int CGameInstance::Pause(CSound_Manager::CHANNELID eID)
+{
+	if (nullptr == m_pSound_Manager)
+	{
+		MSG_BOX(TEXT("nullptr == m_pSound_Manager : CGameInstance"));
+		return 0;
+	}
+	return m_pSound_Manager->Pause(eID);
+}
+
+void CGameInstance::PlaySoundW(TCHAR* pSoundKey, CSound_Manager::CHANNELID eID, _float _vol)
+{
+	if (nullptr == m_pSound_Manager)
+	{
+		MSG_BOX(TEXT("nullptr == m_pSound_Manager : CGameInstance"));
+		return;
+	}
+	return m_pSound_Manager->PlaySound(pSoundKey, eID, _vol);
+}
+
+void CGameInstance::PlayBGM(TCHAR* pSoundKey)
+{
+	if (nullptr == m_pSound_Manager)
+	{
+		MSG_BOX(TEXT("nullptr == m_pSound_Manager : CGameInstance"));
+		return;
+	}
+	return m_pSound_Manager->PlayBGM(pSoundKey);
+}
+
+void CGameInstance::StopSound(CSound_Manager::CHANNELID eID)
+{
+	if (nullptr == m_pSound_Manager)
+	{
+		MSG_BOX(TEXT("nullptr == m_pSound_Manager : CGameInstance"));
+		return;
+	}
+	return m_pSound_Manager->StopSound(eID);
+}
+
+void CGameInstance::StopAll()
+{
+	if (nullptr == m_pSound_Manager)
+	{
+		MSG_BOX(TEXT("nullptr == m_pSound_Manager : CGameInstance"));
+		return;
+	}
+	return m_pSound_Manager->StopAll();
+}
+
+void CGameInstance::Release_Engine()
+{
+	CGameInstance::Get_Instance()->Free();
+
+	CGameInstance::Destroy_Instance();
+
+}
+
+void CGameInstance::Free()
+{
+	Safe_Release(m_pGraphic_Device);
+	Safe_Release(m_pPicking);
+	Safe_Release(m_pLevel_Manager);
+	Safe_Release(m_pObject_Manager);
+	Safe_Release(m_pComponent_Manager);
+	Safe_Release(m_pRenderer);
+	Safe_Release(m_pTimer_Manager);
+	Safe_Release(m_pFont_Manager);
+	Safe_Release(m_pKey_Manager);
+	Safe_Release(m_pCollision_Manager);
+	Safe_Release(m_pSound_Manager);
+
+	__super::Free();
+}

@@ -1,0 +1,960 @@
+#include "pch.h"
+#include "GameInstance.h"
+#include "Level_1945.h"
+#include "Level_Loading.h"
+#include "Camera_Player_DW2.h"
+#include "AirPlane.h"
+#include "MonsterArlertUI.h"
+#include "QAim2.h"
+#include "State.h"
+#include "Effect_Splat.h"
+#include "Bullet.h"
+#include "Terrain.h"
+#include "Wall.h"
+#include "Player_Skill.h"
+#include "MoonStone.h"
+#include "Sky.h"
+#include "Weapon.h"
+#include "Player.h"
+#include "UI_AirPlane.h"
+#include "State.h"
+#include "Comet.h"
+#include "Trigger_BlackHole.h"
+#include "ShootMonster.h"
+#include "BossBattleCruiser.h"
+#include "UI_Boss.h"
+
+CLevel_1945::CLevel_1945(LPDIRECT3DDEVICE9 pGraphic_Device)
+	: CLevel(pGraphic_Device)
+{
+}
+
+HRESULT CLevel_1945::Initialize()
+{
+
+	m_pGameInstance->PlayBGM(L"Standoff.wav");
+	m_pGameInstance->BGMVolumeDown(0.5f);
+
+
+	if (FAILED(__super::Initialize()))
+	{
+		MSG_BOX(TEXT("Failed to Initialize : __super,CLevel_1945"));
+		return E_FAIL;
+	}
+
+	if (FAILED(Ready_Layer_BackGround(TEXT("Layer_Terrain"))))
+	{
+		MSG_BOX(TEXT("Failed to Ready_Layer_BackGround : CLevel_1945"));
+		return E_FAIL;
+	}
+	//if (FAILED(Ready_Layer_Effect(TEXT("Layer_Effect"))))
+	//{
+	//	MSG_BOX(TEXT("Failed to Ready_Layer_BackGround : CLevel_1945"));
+	//	return E_FAIL;
+	//}
+	if (FAILED(Ready_Land_Object()))
+	{
+		MSG_BOX(TEXT("Failed to Ready_Land_Object : CLevel_1945"));
+		return E_FAIL;
+	}
+	///*if (FAILED(Ready_Layer_Camera_Free(TEXT("Layer_Camera_Free"))))
+	//{
+	//	MSG_BOX(TEXT("Failed to Ready_Layer_Camera_Free : CLevel_1945"));
+	//	return E_FAIL;
+	//}*/
+	if (FAILED(Ready_Layer_UI_Player(TEXT("Layer_UI_AirPlane"))))
+	{
+		MSG_BOX(TEXT("Failed to Ready_Layer_UI_Player : CLevel_1945"));
+		return E_FAIL;
+	}
+	if (FAILED(Ready_Layer_Trigger()))
+	{
+		MSG_BOX(TEXT("Failed to Ready_Layer_UI_Player : CLevel_1945"));
+		return E_FAIL;
+	}
+
+	if (FAILED(Ready_Layer_QAim(TEXT("Layer_QAim"))))
+	{
+		MSG_BOX(TEXT("Failed to Ready_Layer_QAim : CLevel_1945"));
+		return E_FAIL;
+	}
+	if (FAILED(Ready_Layer_Camera_Player(TEXT("Layer_AirPlane"), TEXT("Layer_Camera"))))
+	{
+		MSG_BOX(TEXT("Failed to Ready_Layer_Player : CLevel_1945"));
+		return E_FAIL;
+	}
+	if (FAILED(Ready_Layer_Comet(TEXT("Layer_Comet"))))
+	{
+		MSG_BOX(TEXT("Failed to Ready_Layer_Comet : CLevel_1945"));
+		return E_FAIL;
+	}
+
+	return S_OK;
+}
+
+void CLevel_1945::Tick(_float fTimeDelta)
+{
+	__super::Tick(fTimeDelta);
+
+	if (m_fBossSponTime < m_fTime && !m_bSpawnBoss)
+	{
+
+		m_pGameInstance->StopSound(CSound_Manager::CHANNEL_BGM);
+		m_pGameInstance->PlayBGM(TEXT("DarkRoom.wav"));
+		m_pGameInstance->VolumeDown(CSound_Manager::CHANNEL_BGM,0.1f);
+		SponBoss(fTimeDelta);
+		m_bSpawnBoss = true;
+	}
+
+	if (m_fAllAttakTime < m_fTime)
+	{
+		SponMoonStone(fTimeDelta);
+		SponShootMonster(fTimeDelta);
+	}
+	if (m_fTime < m_fMonsterStageTime && m_fTime < m_fBossSponTime)
+	{
+		SponMoonStone(fTimeDelta);
+	}
+	else if(m_fTime < m_fBossSponTime - 15.f)
+	{
+		SponShootMonster(fTimeDelta);
+	}
+
+
+	m_fTime += fTimeDelta;
+	Coliision_Player_BlackHole();
+
+
+
+	if (GetKeyState(VK_RETURN) & 0x8000)
+	{
+		m_pGameInstance->StopSound(CSound_Manager::CHANNEL_BGM);
+		g_eLevel = LEVEL_NORMAL2;
+		if (FAILED(m_pGameInstance->Open_Level(LEVEL_LOADING, CLevel_Loading::Create(m_pGraphic_Device, LEVEL_NORMAL2))))
+			return;
+	}
+}
+
+HRESULT CLevel_1945::Render()
+{
+	if (FAILED(__super::Render()))
+	{
+		MSG_BOX(TEXT("Failed to Render : __super,CLevel_1945"));
+		return E_FAIL;
+	}
+
+	return S_OK;
+}
+
+HRESULT CLevel_1945::Ready_Layer_BackGround(const wstring& strLayerTag)
+{
+	Ready_Layer_BackGround_Parsing();
+
+	CSky::SKY_DESC sky_desc = {};
+	sky_desc.iLevel = LEVEL_1945;
+	if (FAILED(m_pGameInstance->Add_Clone(LEVEL_1945, strLayerTag, TEXT("Prototype_GameObject_Sky"),&sky_desc)))
+	{
+		MSG_BOX(TEXT("Failed to Ready_Layer_BackGround : CLevel_1945"));
+		return E_FAIL;
+	}
+
+	return S_OK;
+}
+
+HRESULT CLevel_1945::Ready_Layer_Effect(const wstring& strLayerTag)
+{
+	return S_OK;
+}
+void CLevel_1945::SponMoonStone(_float fTimeDelta)
+{
+	// 운석패턴을 고르는 시간
+	if (m_fMoonStonePatternTime_Plus < m_fMoonStonePatternTime)
+	{
+		m_fMoonStonePatternTime_Plus += fTimeDelta;
+	}
+	else
+	{
+		m_fMoonStonePatternTime_Plus = 0.f;
+		if (m_eMoonStonePattern != PATTERN_RANDOM)
+		{
+			m_eMoonStonePattern = (MOONSTONEPATTERN)(m_eMoonStonePattern + 1);
+		}
+
+		switch (m_eMoonStonePattern) // 얼마나 뒤에 패턴을 바꾼건지?
+		{
+		case PATTERN_LINE:
+			m_fMoonStonePatternTime = 10.f;
+			m_fMoonStoneSponTime = 2.f;
+			break;
+		case PATTERN_RANDOM:
+			m_fMoonStonePatternTime = 10.f;
+			m_fMoonStoneSponTime = 2.f;
+			break;
+		case PATTERN_DIAGONAL:
+			m_fMoonStonePatternTime = 15.f;
+			m_fMoonStoneSponTime = 3.f;
+			break;
+		case PATTERN_END:
+			m_fMoonStonePatternTime = 0.f;
+			break;
+		default:
+			break;
+		}
+
+	}
+
+	// 운석을 패턴에 맞게 발사하는 시간
+	if (m_fMoonStoneTime < m_fMoonStoneSponTime)
+	{
+		m_fMoonStoneTime += fTimeDelta;
+		return;
+	}
+	
+	switch (m_eMoonStonePattern)
+	{
+	case PATTERN_LINE:
+		SponMoonStoneLine();
+		break;
+	case PATTERN_RANDOM:
+		SponMoonStoneRandom();
+		break;
+	case PATTERN_DIAGONAL:
+		SponMoonStoneDiagonal();
+		break;
+	default:
+		break;
+	}
+
+	m_fMoonStoneTime = 0.f;
+}
+
+
+void CLevel_1945::Coliision_Player_BlackHole()
+{
+	CAirPlane* pAirPlane = dynamic_cast<CAirPlane*>(m_pGameInstance->Get_Object(LEVEL_1945, TEXT("Layer_AirPlane")));
+	if (nullptr == pAirPlane)
+		return;
+	CTrigger_BlackHole* pBlackHole = dynamic_cast<CTrigger_BlackHole*>(m_pGameInstance->Get_Object(LEVEL_1945, TEXT("Layer_Trigger_BlackHole")));
+	if (nullptr == pBlackHole)
+		return;
+	CCollider_Sphere* pAirPlaneCollider = dynamic_cast<CCollider_Sphere*>(pAirPlane->Get_Component(TEXT("Com_Collider_Sphere")));
+	if (nullptr == pAirPlaneCollider)
+		return;
+	CCollider_Sphere* pBlackHoleCollider = dynamic_cast<CCollider_Sphere*>(pBlackHole->Get_Component(TEXT("Com_Collider_Sphere")));
+	if (nullptr == pBlackHoleCollider)
+		return;
+
+
+
+	
+	if (m_pGameInstance->Collision_Sphere(pAirPlaneCollider, pBlackHoleCollider))
+	{
+		m_pGameInstance->StopAll();
+		CCamera_Player_DW2* pCameraDw = dynamic_cast<CCamera_Player_DW2*>(m_pGameInstance->Get_Object(LEVEL_1945, TEXT("Layer_Camera")));
+
+
+		g_eLevel = LEVEL_NORMAL2;
+		if (FAILED(m_pGameInstance->Open_Level(LEVEL_LOADING, CLevel_Loading::Create(m_pGraphic_Device, LEVEL_NORMAL2))))
+			return;
+	}
+}
+
+
+void CLevel_1945::SponMoonStoneLine()
+{
+	CMoonStone::MOON_STONE_DESC MoonDesc = {};
+	MoonDesc.fSpeedPerSec = 10.f;
+	MoonDesc.fRotationPerSec = 1.f;
+	MoonDesc.pTerrainTranformCom = dynamic_cast<CTransform*>(m_pGameInstance->Get_Component(LEVEL_1945, TEXT("Layer_Terrain"), g_strTransformTag.c_str()));
+	MoonDesc.pTerrainVIBufferCom = dynamic_cast<CVIBuffer_Terrain*>(m_pGameInstance->Get_Component(LEVEL_1945, TEXT("Layer_Terrain"), TEXT("Com_VIBuffer")));
+	MoonDesc.m_fScale = (_float)(rand() % 3) + 1.f;
+	MoonDesc.m_fSpeed = 7.f;
+
+	m_iEmpty = rand() % 13;
+
+	for (_uint i = 0; i < 13; ++i)
+	{
+		if (m_iEmpty != i)
+		{
+			MoonDesc.m_fScale = 1.3f;
+			MoonDesc.vMoonPos = { (i * MoonDesc.m_fScale * 2.f) + 8.f + MoonDesc.m_fScale, 0.f, m_vStartMoonStonePos.z };
+			MoonDesc.fHp = MoonDesc.m_fScale;
+			if (FAILED(m_pGameInstance->Add_Clone(LEVEL_1945, TEXT("Layer_MoonStone"), TEXT("Prototype_GameObject_MoonStone"), &MoonDesc)))
+			{
+				MSG_BOX(TEXT("Failed to Prototype_GameObject_MoonStone : CLevel_GamePlay"));
+				return;
+			}
+		}
+	}
+}
+
+void CLevel_1945::SponMoonStoneRandom()
+{
+	CMoonStone::MOON_STONE_DESC MoonDesc = {};
+	MoonDesc.fSpeedPerSec = 10.f;
+	MoonDesc.fRotationPerSec = 1.f;
+	MoonDesc.pTerrainTranformCom = dynamic_cast<CTransform*>(m_pGameInstance->Get_Component(LEVEL_1945, TEXT("Layer_Terrain"), g_strTransformTag.c_str()));
+	MoonDesc.pTerrainVIBufferCom = dynamic_cast<CVIBuffer_Terrain*>(m_pGameInstance->Get_Component(LEVEL_1945, TEXT("Layer_Terrain"), TEXT("Com_VIBuffer")));
+
+	for (_uint i = 0; i < 3; ++i) // 3개씩 생성
+	{
+		MoonDesc.m_fScale = (_float)(rand() % 5) + 1.f;
+		MoonDesc.m_fSpeed = (_float)(rand() % 10) + 5.f;
+		MoonDesc.vMoonPos = { (rand() % (_int)(m_vStartMoonStonePos.x - MoonDesc.m_fScale)) + 8.f + MoonDesc.m_fScale, 0.f, m_vStartMoonStonePos.z };
+		MoonDesc.fHp = MoonDesc.m_fScale; // 체력은 크기만큼 크게
+		if (FAILED(m_pGameInstance->Add_Clone(LEVEL_1945, TEXT("Layer_MoonStone"), TEXT("Prototype_GameObject_MoonStone"), &MoonDesc)))
+		{
+			MSG_BOX(TEXT("Failed to Prototype_GameObject_MoonStone : CLevel_GamePlay"));
+			return;
+		}
+	}
+}
+
+void CLevel_1945::SponMoonStoneDiagonal()
+{
+	if(rand() % 2 == 0)
+	{
+		CMoonStone::MOON_STONE_DESC MoonDesc = {};
+		MoonDesc.fSpeedPerSec = 10.f;
+		MoonDesc.fRotationPerSec = 1.f;
+		MoonDesc.pTerrainTranformCom = dynamic_cast<CTransform*>(m_pGameInstance->Get_Component(LEVEL_1945, TEXT("Layer_Terrain"), g_strTransformTag.c_str()));
+		MoonDesc.pTerrainVIBufferCom = dynamic_cast<CVIBuffer_Terrain*>(m_pGameInstance->Get_Component(LEVEL_1945, TEXT("Layer_Terrain"), TEXT("Com_VIBuffer")));
+		//MoonDesc.m_fScale = (_float)(rand() % 3) + 1.f;
+		MoonDesc.m_fSpeed = 7.f;
+
+		m_iEmpty = rand() % 13;
+
+		for (_uint i = 0; i < 13; ++i)
+		{
+			if (m_iEmpty != i)
+			{
+				MoonDesc.m_fScale = 1.5f;
+				MoonDesc.vMoonPos = { (i * MoonDesc.m_fScale * 1.5f) + 8.f + MoonDesc.m_fScale, 0.f, m_vStartMoonStonePos.z + (MoonDesc.m_fScale * i) };
+				MoonDesc.fHp = MoonDesc.m_fScale;
+				if (FAILED(m_pGameInstance->Add_Clone(LEVEL_1945, TEXT("Layer_MoonStone"), TEXT("Prototype_GameObject_MoonStone"), &MoonDesc)))
+				{
+					MSG_BOX(TEXT("Failed to Prototype_GameObject_MoonStone : CLevel_GamePlay"));
+					return;
+				}
+			}
+		}
+	}
+	else
+	{
+		CMoonStone::MOON_STONE_DESC MoonDesc = {};
+		MoonDesc.fSpeedPerSec = 10.f;
+		MoonDesc.fRotationPerSec = 1.f;
+		MoonDesc.pTerrainTranformCom = dynamic_cast<CTransform*>(m_pGameInstance->Get_Component(LEVEL_1945, TEXT("Layer_Terrain"), g_strTransformTag.c_str()));
+		MoonDesc.pTerrainVIBufferCom = dynamic_cast<CVIBuffer_Terrain*>(m_pGameInstance->Get_Component(LEVEL_1945, TEXT("Layer_Terrain"), TEXT("Com_VIBuffer")));
+		//MoonDesc.m_fScale = (_float)(rand() % 3) + 1.f;
+		MoonDesc.m_fSpeed = 7.f;
+
+		m_iEmpty = rand() % 13;
+
+		for (_uint i = 2; i < 15; ++i)
+		{
+			if ((m_iEmpty + 2) != i)
+			{
+				MoonDesc.m_fScale = 1.5f;
+				MoonDesc.vMoonPos = { (i * MoonDesc.m_fScale * 1.5f) + 8.f + MoonDesc.m_fScale, 0.f, m_vStartMoonStonePos.z + (MoonDesc.m_fScale * (14 - i))};
+				MoonDesc.fHp = MoonDesc.m_fScale;
+				if (FAILED(m_pGameInstance->Add_Clone(LEVEL_1945, TEXT("Layer_MoonStone"), TEXT("Prototype_GameObject_MoonStone"), &MoonDesc)))
+				{
+					MSG_BOX(TEXT("Failed to Prototype_GameObject_MoonStone : CLevel_GamePlay"));
+					return;
+				}
+			}
+		}
+	}
+}
+
+HRESULT CLevel_1945::Ready_Layer_Comet(const wstring& strLayerTag)
+{
+	CComet::COMET_DESC tCometDesc = {};
+	tCometDesc.fSpeedPerSec = 10.f;
+	tCometDesc.fRotationPerSec = D3DXToRadian(90.f);
+	tCometDesc.fScale = 0.2f;
+
+	for (size_t i = 0; i < 300; i++)
+	{
+		tCometDesc.vPos = _float3(6.f + (rand() % 380) * 0.1f, (rand() % 200) * 0.1f - 10.f, -10.f + (rand() % 900) * 0.1f);
+
+		if (FAILED(m_pGameInstance->Add_Clone(LEVEL_1945, strLayerTag, TEXT("Prototype_GameObject_Comet"), &tCometDesc)))
+		{
+			MSG_BOX(TEXT("Failed to Prototype_GameObject_Comet : CLevel_1945"));
+			return E_FAIL;
+		}
+	}
+
+	return S_OK;
+}
+
+HRESULT CLevel_1945::Ready_Layer_Trigger()
+{
+	if (FAILED(Ready_Layer_Trigger_BlackHole(TEXT("Layer_Trigger_BlackHole"))))
+	{
+		MSG_BOX(TEXT("Failed to Ready_Layer_Trigger_Door : CLevel_GamePlay"));
+		return E_FAIL;
+	}
+
+	return S_OK;
+}
+
+HRESULT CLevel_1945::Ready_Layer_Trigger_BlackHole(const wstring& strLayerTag)
+{
+	CTrigger_BlackHole::TRIGGER_DESC  Trigger_Desc = {};
+	Trigger_Desc.vLook = _float3(0.f, 0.f, -1.f);
+	Trigger_Desc.vPos = _float3(25.f, 0.f, 55.f);
+	Trigger_Desc.fScale = 5.f;
+	Trigger_Desc.iTexNum = 0;
+	Trigger_Desc.fSpeedPerSec = 5.f;
+	Trigger_Desc.fRotationPerSec = D3DXToRadian(90.f);
+	Trigger_Desc.pTerrainTranformCom = dynamic_cast<CTransform*>(m_pGameInstance->Get_Component(LEVEL_1945, TEXT("Layer_Terrain"), g_strTransformTag.c_str()));
+	Trigger_Desc.pTerrainVIBufferCom = dynamic_cast<CVIBuffer_Terrain*>(m_pGameInstance->Get_Component(LEVEL_1945, TEXT("Layer_Terrain"), TEXT("Com_VIBuffer")));
+
+
+	if (FAILED(m_pGameInstance->Add_Clone(LEVEL_1945, strLayerTag, TEXT("Prototype_GameObject_Trigger_BlackHole"), &Trigger_Desc)))
+	{
+		MSG_BOX(TEXT("Failed to Prototype_GameObject_Trigger_BlackHole : CLevel_GamePlay"));
+		return E_FAIL;
+	}
+	return S_OK;
+}
+
+
+void CLevel_1945::SponShootMonster(_float fTimeDelta)
+{
+
+	// 운석패턴을 고르는 시간
+
+
+	m_fShootMonsterPatternTime_Plus = 0.f;
+
+
+	// 운석을 패턴에 맞게 발사하는 시간
+	if (m_fShootMonsterTime < m_fShootMonsterSponTime)
+	{
+		m_fShootMonsterTime += fTimeDelta;
+		return;
+	}
+
+	m_eShootMonsterPattern = (SHOOTMONSTERPATTERN)(rand() % SHOOTMONSTER_END);
+
+	switch (m_eShootMonsterPattern) // 얼마나 뒤에 패턴을 바꾼건지?
+	{
+	case SHOOTMONSTER_LEFT:
+		m_fShootMonsterSponTime = 2.f;
+		break;
+	case SHOOTMONSTER_RIGHT:
+		m_fShootMonsterSponTime = 2.f;
+		break;
+	case SHOOTMONSTER_DOWN:
+		m_fShootMonsterSponTime = 3.f;
+		break;
+	case SHOOTMONSTER_LEFT_DOWN:
+		m_fShootMonsterSponTime = 2.f;
+		break;
+
+	case SHOOTMONSTER_RIGHT_DOWN:
+		m_fShootMonsterSponTime = 2.f;
+		break;
+
+	case SHOOTMONSTER_END:
+		m_fShootMonsterSponTime = 2.f;
+		break;
+	default:
+		break;
+	}
+
+
+	switch (m_eShootMonsterPattern)
+	{
+	case SHOOTMONSTER_LEFT:
+		SponShootMonster_Left();
+		break;
+	case SHOOTMONSTER_RIGHT:
+		SponShootMonster_Right();
+		break;
+	case SHOOTMONSTER_DOWN:
+		SponShootMonster_Down();
+		break;
+	case SHOOTMONSTER_LEFT_DOWN:
+		SponShootMonster_Left_Down();
+		break;
+	case SHOOTMONSTER_RIGHT_DOWN:
+		SponShootMonster_Right_Down();
+		break;
+	case SHOOTMONSTER_END:
+		break;
+	default:
+		break;
+	}
+	m_fShootMonsterTime = 0.f;
+}
+void CLevel_1945::SponShootMonster_Right()
+{
+	CShootMonster::MONSTER_SHOOT_MONSTER_DESC MonsterShootDesc = {};
+	MonsterShootDesc.fSpeedPerSec = 10.f;
+	MonsterShootDesc.fRotationPerSec = 1.f;
+	MonsterShootDesc.pTerrainTranformCom = dynamic_cast<CTransform*>(m_pGameInstance->Get_Component(LEVEL_1945, TEXT("Layer_Terrain"), g_strTransformTag.c_str()));
+	MonsterShootDesc.pTerrainVIBufferCom = dynamic_cast<CVIBuffer_Terrain*>(m_pGameInstance->Get_Component(LEVEL_1945, TEXT("Layer_Terrain"), TEXT("Com_VIBuffer")));
+	MonsterShootDesc.eMoveDir = CShootMonster::DIR_RIGHT;
+	MonsterShootDesc.vPos = _float3(-16.f, 0.f, m_vShootMonsterStartPos.z - (_float)(rand()%20) - 10.f);
+	MonsterShootDesc.fScale = 1.f;
+	if (FAILED(m_pGameInstance->Add_Clone(LEVEL_1945, TEXT("Layer_Monster"), TEXT("Prototype_GameObject_ShootMonster"), &MonsterShootDesc)))
+	{
+		MSG_BOX(TEXT("Failed to Ready_Layer_Monster : CLevel_GamePlay"));
+		return;
+	}
+	_float3 Postion = MonsterShootDesc.vPos;
+	for(_uint i = 1; i <= 2; ++i)
+	{
+		
+		MonsterShootDesc.vPos = _float3(Postion.x - MonsterShootDesc.fScale * 2.0f * i, Postion.y, Postion.z + MonsterShootDesc.fScale * 1.5f * i);
+		if (FAILED(m_pGameInstance->Add_Clone(LEVEL_1945, TEXT("Layer_Monster"), TEXT("Prototype_GameObject_ShootMonster"), &MonsterShootDesc)))
+		{
+			MSG_BOX(TEXT("Failed to Ready_Layer_Monster : CLevel_GamePlay"));
+			return;
+		}
+		MonsterShootDesc.vPos = _float3(Postion.x - MonsterShootDesc.fScale * 2.0f * i, Postion.y, Postion.z - MonsterShootDesc.fScale * 1.5f * i);
+		if (FAILED(m_pGameInstance->Add_Clone(LEVEL_1945, TEXT("Layer_Monster"), TEXT("Prototype_GameObject_ShootMonster"), &MonsterShootDesc)))
+		{
+			MSG_BOX(TEXT("Failed to Ready_Layer_Monster : CLevel_GamePlay"));
+			return;
+		}
+	}
+
+}
+
+void CLevel_1945::SponShootMonster_Left()
+{
+	CShootMonster::MONSTER_SHOOT_MONSTER_DESC MonsterShootDesc = {};
+	MonsterShootDesc.fSpeedPerSec = 10.f;
+	MonsterShootDesc.fRotationPerSec = 1.f;
+	MonsterShootDesc.pTerrainTranformCom = dynamic_cast<CTransform*>(m_pGameInstance->Get_Component(LEVEL_1945, TEXT("Layer_Terrain"), g_strTransformTag.c_str()));
+	MonsterShootDesc.pTerrainVIBufferCom = dynamic_cast<CVIBuffer_Terrain*>(m_pGameInstance->Get_Component(LEVEL_1945, TEXT("Layer_Terrain"), TEXT("Com_VIBuffer")));
+	MonsterShootDesc.eMoveDir = CShootMonster::DIR_LEFT;
+	MonsterShootDesc.vPos = _float3(m_vShootMonsterStartPos.x + 8.f, 0.f, m_vShootMonsterStartPos.z - (_float)(rand() % 20) - 10.f);
+	MonsterShootDesc.fScale = 1.f;
+
+	if (FAILED(m_pGameInstance->Add_Clone(LEVEL_1945, TEXT("Layer_Monster"), TEXT("Prototype_GameObject_ShootMonster"), &MonsterShootDesc)))
+	{
+		MSG_BOX(TEXT("Failed to Ready_Layer_Monster : CLevel_GamePlay"));
+		return;
+	}
+	_float3 Postion = MonsterShootDesc.vPos;
+	for (_uint i = 1; i <= 2; ++i)
+	{
+		
+		MonsterShootDesc.vPos = _float3(Postion.x + MonsterShootDesc.fScale * 2.0f * i, Postion.y, Postion.z + MonsterShootDesc.fScale * 1.5f * i);
+		if (FAILED(m_pGameInstance->Add_Clone(LEVEL_1945, TEXT("Layer_Monster"), TEXT("Prototype_GameObject_ShootMonster"), &MonsterShootDesc)))
+		{
+			MSG_BOX(TEXT("Failed to Ready_Layer_Monster : CLevel_GamePlay"));
+			return;
+		}
+		MonsterShootDesc.vPos = _float3(Postion.x + MonsterShootDesc.fScale * 2.0f * i, Postion.y, Postion.z - MonsterShootDesc.fScale * 1.5f * i);
+		if (FAILED(m_pGameInstance->Add_Clone(LEVEL_1945, TEXT("Layer_Monster"), TEXT("Prototype_GameObject_ShootMonster"), &MonsterShootDesc)))
+		{
+			MSG_BOX(TEXT("Failed to Ready_Layer_Monster : CLevel_GamePlay"));
+			return;
+		}
+	}
+}
+
+void CLevel_1945::SponShootMonster_Right_Down()
+{
+	CShootMonster::MONSTER_SHOOT_MONSTER_DESC MonsterShootDesc = {};
+	MonsterShootDesc.fSpeedPerSec = 10.f;
+	MonsterShootDesc.fRotationPerSec = 1.f;
+	MonsterShootDesc.pTerrainTranformCom = dynamic_cast<CTransform*>(m_pGameInstance->Get_Component(LEVEL_1945, TEXT("Layer_Terrain"), g_strTransformTag.c_str()));
+	MonsterShootDesc.pTerrainVIBufferCom = dynamic_cast<CVIBuffer_Terrain*>(m_pGameInstance->Get_Component(LEVEL_1945, TEXT("Layer_Terrain"), TEXT("Com_VIBuffer")));
+	MonsterShootDesc.eMoveDir = CShootMonster::DIR_RIGHT_DOWN;
+	MonsterShootDesc.fScale = 1.f;
+	MonsterShootDesc.vPos = _float3(-12.f + (_float)(rand() % 10), 0.f, m_vShootMonsterStartPos.z - (_float)(rand() % 20) + 10.f);
+
+	if (FAILED(m_pGameInstance->Add_Clone(LEVEL_1945, TEXT("Layer_Monster"), TEXT("Prototype_GameObject_ShootMonster"), &MonsterShootDesc)))
+	{
+		MSG_BOX(TEXT("Failed to Ready_Layer_Monster : CLevel_GamePlay"));
+		return;
+	}
+	_float3 Postion = MonsterShootDesc.vPos;
+	for (_uint i = 1; i <= 2; ++i)
+	{
+		MonsterShootDesc.vPos = _float3(Postion.x - MonsterShootDesc.fScale * 1.5f * i, Postion.y, Postion.z + MonsterShootDesc.fScale * 0.5f * i);
+		if (FAILED(m_pGameInstance->Add_Clone(LEVEL_1945, TEXT("Layer_Monster"), TEXT("Prototype_GameObject_ShootMonster"), &MonsterShootDesc)))
+		{
+			MSG_BOX(TEXT("Failed to Ready_Layer_Monster : CLevel_GamePlay"));
+			return;
+		}
+		MonsterShootDesc.vPos = _float3(Postion.x - MonsterShootDesc.fScale * 0.5f * i, Postion.y, Postion.z + MonsterShootDesc.fScale * 1.5f * i);
+		if (FAILED(m_pGameInstance->Add_Clone(LEVEL_1945, TEXT("Layer_Monster"), TEXT("Prototype_GameObject_ShootMonster"), &MonsterShootDesc)))
+		{
+			MSG_BOX(TEXT("Failed to Ready_Layer_Monster : CLevel_GamePlay"));
+			return;
+		}
+	}
+}
+
+void CLevel_1945::SponShootMonster_Left_Down()
+{
+	CShootMonster::MONSTER_SHOOT_MONSTER_DESC MonsterShootDesc = {};
+	MonsterShootDesc.fSpeedPerSec = 10.f;
+	MonsterShootDesc.fRotationPerSec = 1.f;
+	MonsterShootDesc.pTerrainTranformCom = dynamic_cast<CTransform*>(m_pGameInstance->Get_Component(LEVEL_1945, TEXT("Layer_Terrain"), g_strTransformTag.c_str()));
+	MonsterShootDesc.pTerrainVIBufferCom = dynamic_cast<CVIBuffer_Terrain*>(m_pGameInstance->Get_Component(LEVEL_1945, TEXT("Layer_Terrain"), TEXT("Com_VIBuffer")));
+	MonsterShootDesc.eMoveDir = CShootMonster::DIR_LEFT_DOWN;
+	MonsterShootDesc.vPos = _float3(m_vShootMonsterStartPos.x + 4.f - (_float)(rand()%10), 0.f, m_vShootMonsterStartPos.z - (_float)(rand() % 20) + 10.f);
+	MonsterShootDesc.fScale = 1.f;
+
+	if (FAILED(m_pGameInstance->Add_Clone(LEVEL_1945, TEXT("Layer_Monster"), TEXT("Prototype_GameObject_ShootMonster"), &MonsterShootDesc)))
+	{
+		MSG_BOX(TEXT("Failed to Ready_Layer_Monster : CLevel_GamePlay"));
+		return;
+	}
+	_float3 Postion = MonsterShootDesc.vPos;
+	for (_uint i = 1; i <= 2; ++i)
+	{
+
+		MonsterShootDesc.vPos = _float3(Postion.x + MonsterShootDesc.fScale * 0.5f * i, Postion.y, Postion.z + MonsterShootDesc.fScale * 1.5f * i);
+		if (FAILED(m_pGameInstance->Add_Clone(LEVEL_1945, TEXT("Layer_Monster"), TEXT("Prototype_GameObject_ShootMonster"), &MonsterShootDesc)))
+		{
+			MSG_BOX(TEXT("Failed to Ready_Layer_Monster : CLevel_GamePlay"));
+			return;
+		}
+		MonsterShootDesc.vPos = _float3(Postion.x + MonsterShootDesc.fScale * 1.5f * i, Postion.y, Postion.z + MonsterShootDesc.fScale * 0.5f * i);
+		if (FAILED(m_pGameInstance->Add_Clone(LEVEL_1945, TEXT("Layer_Monster"), TEXT("Prototype_GameObject_ShootMonster"), &MonsterShootDesc)))
+		{
+			MSG_BOX(TEXT("Failed to Ready_Layer_Monster : CLevel_GamePlay"));
+			return;
+		}
+	}
+}
+
+void CLevel_1945::SponShootMonster_Down()
+{
+	CShootMonster::MONSTER_SHOOT_MONSTER_DESC MonsterShootDesc = {};
+	MonsterShootDesc.fSpeedPerSec = 10.f;
+	MonsterShootDesc.fRotationPerSec = 1.f;
+	MonsterShootDesc.pTerrainTranformCom = dynamic_cast<CTransform*>(m_pGameInstance->Get_Component(LEVEL_1945, TEXT("Layer_Terrain"), g_strTransformTag.c_str()));
+	MonsterShootDesc.pTerrainVIBufferCom = dynamic_cast<CVIBuffer_Terrain*>(m_pGameInstance->Get_Component(LEVEL_1945, TEXT("Layer_Terrain"), TEXT("Com_VIBuffer")));
+	MonsterShootDesc.eMoveDir = CShootMonster::DIR_DOWN;
+	MonsterShootDesc.fScale = 1.f;
+	MonsterShootDesc.vPos = _float3(8.f + (MonsterShootDesc.fScale * 3.f) + (_float)(rand()%25), 0.f, m_vShootMonsterStartPos.z + 10.f);
+
+	if (FAILED(m_pGameInstance->Add_Clone(LEVEL_1945, TEXT("Layer_Monster"), TEXT("Prototype_GameObject_ShootMonster"), &MonsterShootDesc)))
+	{
+		MSG_BOX(TEXT("Failed to Ready_Layer_Monster : CLevel_GamePlay"));
+		return;
+	}
+	_float3 Postion = MonsterShootDesc.vPos;
+	for (_uint i = 1; i <= 2; ++i)
+	{
+		MonsterShootDesc.vPos = _float3(Postion.x + MonsterShootDesc.fScale * 1.5f * i, Postion.y, Postion.z + MonsterShootDesc.fScale * 2.f * i);
+		if (FAILED(m_pGameInstance->Add_Clone(LEVEL_1945, TEXT("Layer_Monster"), TEXT("Prototype_GameObject_ShootMonster"), &MonsterShootDesc)))
+		{
+			MSG_BOX(TEXT("Failed to Ready_Layer_Monster : CLevel_GamePlay"));
+			return;
+		}
+		MonsterShootDesc.vPos = _float3(Postion.x - MonsterShootDesc.fScale * 1.5f * i, Postion.y, Postion.z + MonsterShootDesc.fScale * 2.f * i);
+		if (FAILED(m_pGameInstance->Add_Clone(LEVEL_1945, TEXT("Layer_Monster"), TEXT("Prototype_GameObject_ShootMonster"), &MonsterShootDesc)))
+		{
+			MSG_BOX(TEXT("Failed to Ready_Layer_Monster : CLevel_GamePlay"));
+			return;
+		}
+	}
+}
+
+HRESULT CLevel_1945::SponBoss(_float fTimeDelta)
+{
+	CBossBattleCruiser::BOSS_BATTLE_CRUISER_DESC BossMonsterDesc = {};
+	BossMonsterDesc.fSpeedPerSec = 1.f;
+	BossMonsterDesc.fRotationPerSec = 1.f;
+	BossMonsterDesc.pTerrainTranformCom = dynamic_cast<CTransform*>(m_pGameInstance->Get_Component(LEVEL_1945, TEXT("Layer_Terrain"), g_strTransformTag.c_str()));
+	BossMonsterDesc.pTerrainVIBufferCom = dynamic_cast<CVIBuffer_Terrain*>(m_pGameInstance->Get_Component(LEVEL_1945, TEXT("Layer_Terrain"), TEXT("Com_VIBuffer")));
+	BossMonsterDesc.vPos = { 25.f,-10.f,-10.f };
+	BossMonsterDesc.fScale = 20.f;
+
+	if (FAILED(m_pGameInstance->Add_Clone(LEVEL_1945, TEXT("Layer_Boss"), TEXT("Prototype_GameObject_BossBattleCruiser"), &BossMonsterDesc)))
+	{
+		MSG_BOX(TEXT("Failed to Ready_Layer_QAim : CLevel_1945"));
+		return E_FAIL;
+	}
+
+	CCamera_Player_DW2* pCameraDw = dynamic_cast<CCamera_Player_DW2*>(m_pGameInstance->Get_Object(LEVEL_1945, TEXT("Layer_Camera")));
+	pCameraDw->SetCameraMonsterScene(true);
+
+
+	g_UI = false;
+
+
+	return S_OK;
+}
+
+HRESULT CLevel_1945::Ready_Layer_QAim(const wstring& strLayerTag)
+{
+	CQAim2::QAIM_DESC2 AimDesc = {};
+	AimDesc.fMouseSensor = 0.1f;
+	AimDesc.fSpeedPerSec = 5.f;
+	AimDesc.fRotationPerSec = D3DXToRadian(90.0f);
+
+	if (FAILED(m_pGameInstance->Add_Clone(LEVEL_1945, strLayerTag, TEXT("Prototype_GameObject_QAim2"), &AimDesc)))
+	{
+		MSG_BOX(TEXT("Failed to Ready_Layer_QAim : CLevel_1945"));
+		return E_FAIL;
+	}
+	return S_OK;
+}
+
+HRESULT CLevel_1945::Ready_Layer_Bullet(const wstring& strLayerTag)
+{
+	CGameObject::GAMEOBJECT_DESC GameObjectDesc = {};
+	GameObjectDesc.fSpeedPerSec = 500.f;
+
+	if (FAILED(m_pGameInstance->Add_Clone(LEVEL_1945, strLayerTag, TEXT("Prototype_GameObject_Bullet"), &GameObjectDesc)))
+	{
+		MSG_BOX(TEXT("Failed to Ready_Layer_Bullet : CLevel_1945"));
+		return E_FAIL;
+	}
+
+	return S_OK;
+}
+
+
+HRESULT CLevel_1945::Ready_Layer_UI_Player(const wstring& strLayerTag)
+{
+	CUI_AirPlane::UI_AIRPLANE_DESC AirPlaneDesc = {};
+	AirPlaneDesc.fRotationPerSec = D3DXToRadian(1.f);
+	AirPlaneDesc.fSpeedPerSec = 10.f;
+	AirPlaneDesc.pPlaneState = dynamic_cast<CState*>(m_pGameInstance->Get_Component(LEVEL_1945, TEXT("Layer_AirPlane"), TEXT("Com_State")));
+	AirPlaneDesc.pPlane = dynamic_cast<CAirPlane*>(m_pGameInstance->Get_Object(LEVEL_1945, TEXT("Layer_AirPlane")));
+	if (FAILED(m_pGameInstance->Add_Clone(LEVEL_1945, strLayerTag, TEXT("Prototype_GameObject_UI_AirPlane"),&AirPlaneDesc)))
+	{
+		MSG_BOX(TEXT("Failed to Ready_Layer_Weapon : CLevel_1945"));
+		return E_FAIL;
+	}
+	return S_OK;
+}
+HRESULT CLevel_1945::Ready_Layer_BackGround_Parsing()
+{
+	Load_Terrain();
+	Load_Wall();
+
+	return S_OK;
+}
+
+HRESULT CLevel_1945::Ready_Layer_Camera_Player(const wstring& strPlayerLayerTag, const wstring& strCameraLayerTag)
+{
+	CCamera_Player_DW2::CAMERA_PLAYER_DW_DESC2 CameraPlayerDesc = {};
+	CameraPlayerDesc.vEye = _float3{ 0.f , 0.f, -1.f };
+	CameraPlayerDesc.vAt = _float3{ 0.f , 0.f, 0.f };
+	CameraPlayerDesc.fAspect = (_float)g_iWinSizeX / g_iWinSizeY;
+	CameraPlayerDesc.fFar = 1000.f;
+	CameraPlayerDesc.fFovy = D3DXToRadian(90.f);
+	CameraPlayerDesc.fNear = 0.1f;
+	CameraPlayerDesc.fRotationPerSec = 1.f;
+	CameraPlayerDesc.fSpeedPerSec = 1.f;
+	CameraPlayerDesc.iLevel = LEVEL_1945;
+	CameraPlayerDesc.fMouseSensor = 0.1f;
+	CameraPlayerDesc.pAirPlane = dynamic_cast<CAirPlane*>(m_pGameInstance->Get_Object(LEVEL_1945, TEXT("Layer_AirPlane"))); // 대원 카메라 2로 하자.
+
+	if (FAILED(m_pGameInstance->Add_Clone(LEVEL_1945, strCameraLayerTag, TEXT("Prototype_GameObject_Camera_Player_DW2"), &CameraPlayerDesc)))
+	{
+		MSG_BOX(TEXT("Failed to Add_Clone : CLevel_GamePlay"));
+		return E_FAIL;
+	}
+
+	return S_OK;
+}
+
+HRESULT CLevel_1945::Ready_Layer_Monster(const wstring& strLayerTag, void* pArg)
+{
+	for (size_t i = 0; i < 10; i++)
+	{
+		if (FAILED(m_pGameInstance->Add_Clone(LEVEL_1945, strLayerTag, TEXT("Prototype_GameObject_Monster_Three_Red_Eyes"), pArg)))
+		{
+			MSG_BOX(TEXT("Failed to Ready_Layer_Monster : CLevel_GamePlay"));
+			return E_FAIL;
+		}
+		m_iMonsterNum++;
+	}
+
+	for (size_t i = 0; i < 2; i++)
+	{
+		if (FAILED(m_pGameInstance->Add_Clone(LEVEL_1945, strLayerTag, TEXT("Prototype_GameObject_Monster_White_Fly"), pArg)))
+		{
+			MSG_BOX(TEXT("Failed to Ready_Layer_Monster : CLevel_GamePlay"));
+			return E_FAIL;
+		}
+		m_iMonsterNum++;
+	}
+
+	for (size_t i = 0; i < 2; i++)
+	{
+		if (FAILED(m_pGameInstance->Add_Clone(LEVEL_1945, strLayerTag, TEXT("Prototype_GameObject_Monster_Red_Fly"), pArg)))
+		{
+			MSG_BOX(TEXT("Failed to Ready_Layer_Monster : CLevel_GamePlay"));
+			return E_FAIL;
+		}
+		m_iMonsterNum++;
+	}
+
+	if (FAILED(m_pGameInstance->Add_Clone(LEVEL_1945, strLayerTag, TEXT("Prototype_GameObject_Monster_Jump_PinkSlime"), pArg)))
+	{
+		MSG_BOX(TEXT("Failed to Ready_Layer_Monster : CLevel_GamePlay"));
+		return E_FAIL;
+	}
+	return S_OK;
+
+}
+
+
+HRESULT CLevel_1945::Ready_Land_Object()
+{
+	CLandObject::LANDOBJECT_DESC LandObjectDesc = {};
+	LandObjectDesc.fSpeedPerSec = 10.f;
+	LandObjectDesc.fRotationPerSec = 1.f;
+	LandObjectDesc.pTerrainTranformCom = dynamic_cast<CTransform*>(m_pGameInstance->Get_Component(LEVEL_1945, TEXT("Layer_Terrain"), g_strTransformTag.c_str()));
+	LandObjectDesc.pTerrainVIBufferCom = dynamic_cast<CVIBuffer_Terrain*>(m_pGameInstance->Get_Component(LEVEL_1945, TEXT("Layer_Terrain"), TEXT("Com_VIBuffer")));
+
+	if (FAILED(m_pGameInstance->Add_Clone(LEVEL_1945, TEXT("Layer_AirPlane"), TEXT("Prototype_GameObject_AirPlane"), &LandObjectDesc)))
+	{
+		MSG_BOX(TEXT("Failed to Ready_Layer_Monster : CLevel_GamePlay"));
+		return E_FAIL;
+	}
+
+	LandObjectDesc.fSpeedPerSec = 10.f;
+	LandObjectDesc.fRotationPerSec = 1.f;
+	LandObjectDesc.pTerrainTranformCom = dynamic_cast<CTransform*>(m_pGameInstance->Get_Component(LEVEL_1945, TEXT("Layer_Terrain"), g_strTransformTag.c_str()));
+	LandObjectDesc.pTerrainVIBufferCom = dynamic_cast<CVIBuffer_Terrain*>(m_pGameInstance->Get_Component(LEVEL_1945, TEXT("Layer_Terrain"), TEXT("Com_VIBuffer")));
+
+	if (FAILED(m_pGameInstance->Add_Clone(LEVEL_1945, TEXT("Layer_Turret"), TEXT("Prototype_GameObject_AirPlane_Turret_Body"), &LandObjectDesc)))
+	{
+		MSG_BOX(TEXT("Failed to Ready_Layer_Monster : CLevel_GamePlay"));
+		return E_FAIL;
+	}
+
+	LandObjectDesc.fSpeedPerSec = 10.f;
+	LandObjectDesc.fRotationPerSec = 1.f;
+	LandObjectDesc.pTerrainTranformCom = dynamic_cast<CTransform*>(m_pGameInstance->Get_Component(LEVEL_1945, TEXT("Layer_Terrain"), g_strTransformTag.c_str()));
+	LandObjectDesc.pTerrainVIBufferCom = dynamic_cast<CVIBuffer_Terrain*>(m_pGameInstance->Get_Component(LEVEL_1945, TEXT("Layer_Terrain"), TEXT("Com_VIBuffer")));
+
+	if (FAILED(m_pGameInstance->Add_Clone(LEVEL_1945, TEXT("Layer_Turret"), TEXT("Prototype_GameObject_AirPlane_Turret_Mouse"), &LandObjectDesc)))
+	{
+		MSG_BOX(TEXT("Failed to Ready_Layer_Monster : CLevel_GamePlay"));
+		return E_FAIL;
+	}
+
+
+
+	return S_OK;
+}
+
+
+
+
+
+void CLevel_1945::Load_Terrain()
+{
+	HANDLE		hFile = CreateFile(L"../Bin/Data/Level1_Terrain.dat", GENERIC_READ, NULL, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+
+	if (INVALID_HANDLE_VALUE == hFile)
+		return;
+
+	DWORD	dwByte(0);
+
+	int iTerrainVerticesX(0), iTerrainVerticesZ(0), iTerrainFrame(0);
+
+	ReadFile(hFile, &iTerrainVerticesX, sizeof(int), &dwByte, nullptr);
+	ReadFile(hFile, &iTerrainVerticesZ, sizeof(int), &dwByte, nullptr);
+	ReadFile(hFile, &iTerrainFrame, sizeof(int), &dwByte, nullptr);
+
+	/* For.Prototype_Component_VIBuffer_Terrain */
+	if (FAILED(m_pGameInstance->Add_Prototype(LEVEL_1945, TEXT("Prototype_Component_VIBuffer_Terrain_Data_1945"),
+		CVIBuffer_Terrain::Create(m_pGraphic_Device, iTerrainVerticesX, iTerrainVerticesZ))))
+	{
+		MSG_BOX(TEXT("failed to Load_Terrain : Prototype_Component_VIBuffer_Terrain_Data"));
+		return;
+	}
+
+	
+	/* For.Prototype_GameObject_Terrain */
+	if (FAILED(m_pGameInstance->Add_Prototype(TEXT("Prototype_Component_VIBuffer_Terrain_Data_1945"), CTerrain::Create(m_pGraphic_Device))))
+	{
+		MSG_BOX(TEXT("Faild to Add_Prototype : CImGUI"));
+		return;
+	}
+
+	CTerrain::TERRAIN_DESC terrainDesc = {};
+
+	terrainDesc.strVIBufferTag = TEXT("Prototype_Component_VIBuffer_Terrain_Data_1945");
+	terrainDesc.iFrame = iTerrainFrame;
+	terrainDesc.iLevel = LEVEL_1945;
+
+	if (FAILED(m_pGameInstance->Add_Clone(LEVEL_1945, TEXT("Layer_Terrain"), TEXT("Prototype_Component_VIBuffer_Terrain_Data_1945"), &terrainDesc)))
+	{
+		MSG_BOX(TEXT("Failed to Ready_Layer_BackGround : CImGUI"));
+		return;
+	}
+
+	CloseHandle(hFile);
+}
+
+void CLevel_1945::Load_Wall()
+{
+	HANDLE		hFile = CreateFile(L"../Bin/Data/Level1945_Wall.dat", GENERIC_READ, NULL, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+
+	if (INVALID_HANDLE_VALUE == hFile)
+		return;
+
+	DWORD	dwByte(0);
+	_uint	iWallFrame(0);
+
+	_uint iWallNum = { 0 };
+	CWall::WALL_DESC wallDesc = {};
+	wallDesc.iLevel = LEVEL_1945;
+	wallDesc.strVIBufferTag = TEXT("Prototype_Component_VIBuffer_Wall_ImGUI_1945");
+	wallDesc.iFrame = 0;
+	ReadFile(hFile, &iWallNum, sizeof(_uint), &dwByte, nullptr);
+
+	/* For.Prototype_Component_VIBuffer_Wall */
+	if (FAILED(m_pGameInstance->Add_Prototype(LEVEL_1945, TEXT("Prototype_Component_VIBuffer_Wall_ImGUI_1945"),
+		CVIBuffer_Wall::Create(m_pGraphic_Device, 2, 6))))
+	{
+		MSG_BOX(TEXT("failed to Add_Prototype : LoadWall"));
+		return;
+	}
+
+
+	for (_uint i = 0; iWallNum > i; ++i)
+	{
+		ReadFile(hFile, &wallDesc.WorldMatrix, sizeof(_float4x4), &dwByte, nullptr);
+		ReadFile(hFile, &wallDesc.iFrame, sizeof(_uint), &dwByte, nullptr);
+		
+		if (FAILED(m_pGameInstance->Add_Clone(LEVEL_1945, TEXT("Layer_Wall"), TEXT("Prototype_GameObject_Wall"), &wallDesc)))
+		{
+			MSG_BOX(TEXT("Failed to Add_Clone Prototype_GameObject_Wall: CImGUI"));
+			return;
+		}
+	}
+
+	CloseHandle(hFile);
+}
+
+
+CLevel_1945* CLevel_1945::Create(LPDIRECT3DDEVICE9 pGraphic_Device)
+{
+	CLevel_1945* pInstance = new CLevel_1945(pGraphic_Device);
+	if (FAILED(pInstance->Initialize()))
+	{
+		MSG_BOX(TEXT("Faild to Created : CLevel_1945"));
+
+		Safe_Release(pInstance);
+	}
+
+	return pInstance;
+}
+
+void CLevel_1945::Free()
+{
+	__super::Free();
+}

@@ -1,0 +1,94 @@
+#pragma once
+#include "LandObject.h"
+#include "Client_Defines.h"
+
+#define SNOW_MOON_STONE_TIME 30.f
+
+BEGIN(Engine)
+class CVIBuffer_Sphere;
+class CTexture;
+//콜라이더 실험 BEGIN.
+class CCollider;
+class CCollider_Sphere;
+//콜라이더 실험 END.
+END
+
+BEGIN(Client)
+
+class CMoonStone final : public CLandObject
+{
+public:
+	typedef struct tagMoon_Stone_Desc : public CLandObject::LANDOBJECT_DESC {
+		_float m_fScale; // 크기
+		_uint m_iTexNum; // 어떤 사진을 사용할지?
+		_float m_fSpeed; // 속도
+		_float3 vMoonPos;
+		_float fHp; // 체력
+	}MOON_STONE_DESC;
+
+private:
+	CMoonStone(LPDIRECT3DDEVICE9 pGraphic_Device);
+	CMoonStone(const CMoonStone& rhs);
+	virtual ~CMoonStone() = default;
+
+public:
+	virtual HRESULT Initialize_Prototype() override;
+	virtual HRESULT Initialize(void* pArg) override;
+	virtual _uint Tick(_float fTimeDelta) override;
+	virtual void Late_Tick(_float fTimeDelta) override;
+	virtual HRESULT Render() override;
+
+public:
+	void Return_Look_Position(_float3* pvLook, _float3* pvPosition); // 현재 보는 곳과 위치를 알려주는 함수
+	_float3 Return_ViewPort_Pos(); // 뷰 포트 상의 현재 위치를 알려주는 함수
+
+	void Set_Life_Time() {
+		m_fLifeTime = SNOW_MOON_STONE_TIME;
+		m_bDead = false;
+	}
+
+private:
+	HRESULT Add_Components();
+	HRESULT Set_RenderState();
+	HRESULT Reset_RenderState();
+	
+	void Collision_Bullet(_float fTimeDelta);
+	void Collider_Billboarding();
+
+	//준수 추가
+	HRESULT Drop_Item();
+
+private:
+	CTexture* m_pTextureCom = { nullptr };
+	CVIBuffer_Sphere* m_pVIBuffer_Com = { nullptr };
+	CCollider* m_pCollider_Com[COLLIDER_END] = {nullptr};
+	class CState* m_pState_Com = { nullptr };
+
+
+	_float3 m_vStartPos = {33.f, 0.f, 60.f}; // 얼마만큼의 범위에서 돌아다닐 건지?
+
+	// 속도
+	_float m_fGoSpeed = { 10.f };
+
+	// 받아오는 몬스터의 룩벡터
+	_float3 m_vBossLook = { 0.f, 0.f, -1.f};
+	_float3 m_vMoonStonePos = {};
+	_float m_fScale = {};
+
+	// 라이프타임
+	_float m_fLifeTime = { 100.f };
+
+	// 어떤 색의 공 출력할건지?
+	_uint m_iTexNum = { 0 };
+
+	// 체력
+	_float m_fHp = { 0.f };
+
+
+public:
+	static CMoonStone* Create(LPDIRECT3DDEVICE9 pGraphic_Device);
+	virtual CGameObject* Clone(void* pArg) override; // 이거 보스가 실행
+	virtual void Free() override;
+};
+
+END

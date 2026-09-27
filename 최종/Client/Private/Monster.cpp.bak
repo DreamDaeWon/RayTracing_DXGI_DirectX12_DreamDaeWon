@@ -1,0 +1,377 @@
+#include "pch.h"
+#include "Monster.h"
+#include "GameInstance.h"
+
+CMonster::CMonster(LPDIRECT3DDEVICE9 pGraphic_Device) :
+	CLandObject(pGraphic_Device)
+{
+}
+
+CMonster::CMonster(const CMonster& rhs) :
+	CLandObject(rhs)
+{
+}
+
+HRESULT CMonster::Initialize_Prototype()
+{
+	if (FAILED(__super::Initialize_Prototype()))
+	{
+		MSG_BOX(TEXT("Failed to Initialize_Prototype : __super,CMonster"));
+		return E_FAIL;
+	}
+
+	return S_OK;
+}
+
+HRESULT CMonster::Initialize(void* pArg)
+{
+	if (pArg != nullptr)
+	{
+		LANDOBJECT_DESC* pLandObjectDesc = (LANDOBJECT_DESC*)pArg;
+		pLandObjectDesc->fSpeedPerSec = 1.f;
+		pLandObjectDesc->fRotationPerSec = D3DXToRadian(90.f);
+	}
+
+	if (FAILED(__super::Initialize(pArg)))
+	{
+		MSG_BOX(TEXT("Failed to Initialize : __super,CMonster"));
+		return E_FAIL;
+	}
+
+	if (FAILED(Add_Components()))
+	{
+		MSG_BOX(TEXT("Failed to Add_Components : __super,CMonster"));
+		return E_FAIL;
+	}
+
+	//m_pTransform->Set_State(CTransform::STATE_RIGHT, m_pTransform->Get_State(CTransform::STATE_RIGHT) * 5);
+	//m_pTransform->Set_State(CTransform::STATE_UP, m_pTransform->Get_State(CTransform::STATE_UP) * 5);
+	//m_pTransform->Set_State(CTransform::STATE_LOOK, m_pTransform->Get_State(CTransform::STATE_LOOK) * 5);
+	m_pCollider_Com->Set_Scale(m_pTransform->Get_Scale());
+
+	m_pTransform->Set_State(CTransform::STATE_POSITION, _float3((_float)(rand() % 20), 0.5f, (_float)(rand() % 20)));
+	
+	return S_OK;
+}
+
+_uint CMonster::Tick(_float fTimeDelta)
+{
+	m_pCollider_Com->Update_Collider_Info(*m_pTransform->Get_WorldMatrix());
+
+
+	//if (m_pGameInstance->Key_Pressing('K'))
+	//{
+	//	_float3 vRayDir, vRayPos;
+	//	m_pGameInstance->Transform_PickingToLocalSpace(m_pTransform, &vRayDir, &vRayPos); //몬스터 로컬에서 마우스 레이포즈와 디렉션을 가져옴.
+ //		if (true == m_pGameInstance->Collision_Rect_Ray(m_pCollider_Com, m_pTransform, vRayDir, vRayPos)) //콜라이더의 점을 몬스터의 로컬로 가져가서 계산
+	//		int a = 1;//레이 필요
+	//}
+
+	
+
+	__super::SetUp_OnTerrain(0.5f);
+
+	__super::Tick(fTimeDelta);
+	return OBJECT_NOTHING;
+}
+
+void CMonster::Late_Tick(_float fTimeDelta)
+{
+	__super::Late_Tick(fTimeDelta);
+
+	SetUp_BillBoard();
+	//Look_Camera_Fixed_Y_Axis();
+	//Chase_Player(fTimeDelta);
+	
+	m_pGameInstance->Add_RenderObject(CRenderer::RENDER_NONBLEND, this);
+}
+
+HRESULT CMonster::Render()
+{
+	//if (FAILED(__super::Render()))
+	//{
+	//	MSG_BOX(TEXT("Failed to Render : __super,CPlayer"));
+	//	return E_FAIL;
+	//}
+
+	if (FAILED(m_pTransform->Bind_WorldMatrix()))
+	{
+		MSG_BOX(TEXT("Failed to Bind_WorldMatrix : Render"));
+		return E_FAIL;
+	}
+	if (FAILED(m_pTextureCom->Bind_Texture(0, 0)))
+	{
+		MSG_BOX(TEXT("Failed to Bind_Texture : Render"));
+		return E_FAIL;
+	}
+	//m_pGraphic_Device->SetRenderState(D3DRS_FILLMODE, D3DFILL_WIREFRAME);
+	if (FAILED(Set_RenderState()))
+	{
+		MSG_BOX(TEXT("Failed to Set_RenderState : Render"));
+		return E_FAIL;
+	}
+	if (FAILED(m_pVIBuffer_Com->Render()))
+	{
+		MSG_BOX(TEXT("Failed to Render : Render"));
+		return E_FAIL;
+	}
+	if (FAILED(Reset_RenderState()))
+	{
+		MSG_BOX(TEXT("Failed to Reset_RenderState : Render"));
+		return E_FAIL;
+	}
+	
+
+	return S_OK;
+}
+
+void CMonster::Return_Look_Position(_float3* pvLook, _float3* pvPosition)
+{
+	*pvLook = m_pTransform->Get_State(CTransform::STATE_LOOK);
+	*pvPosition = m_pTransform->Get_State(CTransform::STATE_POSITION);
+}
+
+_float3 CMonster::Return_ViewPort_Pos()
+{
+	_float3 vPosition = m_pTransform->Get_State(CTransform::STATE_POSITION);
+
+	_float4x4 ViewMatrix, ProjectionMatrix;
+
+	m_pGraphic_Device->GetTransform(D3DTS_VIEW, &ViewMatrix);
+	m_pGraphic_Device->GetTransform(D3DTS_PROJECTION, &ProjectionMatrix);
+
+	vPosition = *D3DXVec3TransformCoord(&vPosition, &vPosition, &ViewMatrix);
+	vPosition = *D3DXVec3TransformCoord(&vPosition, &vPosition, &ProjectionMatrix);
+
+	vPosition.x = vPosition.x * g_iWinSizeX * 0.5f + g_iWinSizeX * 0.5f;
+	vPosition.y = vPosition.y * g_iWinSizeY * 0.5f + g_iWinSizeY * 0.5f;
+
+	return vPosition;
+}
+
+HRESULT CMonster::Add_Components()
+{	/* For.Com_VIBuffer */
+	if (FAILED(__super::Add_Component(LEVEL_STATIC, TEXT("Prototype_Component_VIBuffer_Rect"), TEXT("Com_VIBuffer"), reinterpret_cast<CComponent**>(&m_pVIBuffer_Com))))
+	{
+		MSG_BOX(TEXT("Failed to Prototype_Component_VIBuffer_Rect : Add_Components"));
+		return E_FAIL;
+	}
+
+	/* For.Com_Texture */
+	//if (FAILED(__super::Add_Component(LEVEL_GAMEPLAY, TEXT("Prototype_Component_Texture_PlayerBack"), TEXT("Com_Texture"), reinterpret_cast<CComponent**>(&m_pTextureCom))))
+	//{
+	//	MSG_BOX(TEXT("Failed to Prototype_Component_Texture_PlayerBack : Add_Components"));
+	//	return E_FAIL;
+	//}
+	/* For.Com_Texture */
+	if (FAILED(__super::Add_Component(LEVEL_GAMEPLAY, TEXT("Prototype_Component_Texture_Monster"), TEXT("Com_Texture"), reinterpret_cast<CComponent**>(&m_pTextureCom))))
+	{
+		MSG_BOX(TEXT("Failed to Prototype_Component_Texture_Monster : Add_Components"));
+		return E_FAIL;
+	}
+
+	//콜라이더 실험 BEGIN.
+	if (FAILED(__super::Add_Component(LEVEL_GAMEPLAY, TEXT("Prototype_Component_Collider_Rect"), TEXT("Com_Collider"), reinterpret_cast<CComponent**>(&m_pCollider_Com))))
+	{
+		MSG_BOX(TEXT("Failed to Prototype_Component_Collider_Rect : Add_Components"));
+		return E_FAIL;
+	}
+	//콜라이더 실험 END.
+	return S_OK;
+}
+//
+//void CMonster::Mouse_Axis_Turn(_float fTimeDelta)
+//{
+//	POINT ptMouse = {};
+//	GetCursorPos(&ptMouse);
+//	//ScreenToClient(g_hWnd, &ptMouse);
+//	//m_vCurrentMousePosition.x = (_float)ptMouse.x;
+//	//m_vCurrentMousePosition.y = (_float)ptMouse.y;
+//	//m_vCurrentMousePosition.z = 0.f;
+//	//_float3 vRight = m_pTransform->Get_State(CTransform::STATE_RIGHT);
+//	//_float3 vUp = m_pTransform->Get_State(CTransform::STATE_UP);
+//	//_float3 vLook = m_pTransform->Get_State(CTransform::STATE_LOOK);
+//	//_float4x4 WorldMatrix = { vRight.x,vRight.y,vRight.z,0.f,
+//	//vUp.x,vUp.y,vUp.z,0.f,
+//	//vLook.x,vLook.y,vLook.z,0.f,
+//	//0.f, 0.f, 0.f, 1.f
+//	//};
+//	//_float3 vAxis = m_vCurrentMousePosition - m_vPreMousePosition;
+//	//vAxis = { vAxis.y, vAxis.x, 0.f };
+//	//D3DXVec3TransformNormal(&vAxis, &vAxis, &WorldMatrix);
+//	//m_pTransform->Turn(vAxis, fTimeDelta);//룩벡터와 수직
+//
+//
+//	_long lDeltaX = ptMouse.x - m_ptMouse.x;
+//	_long lDeltaY = ptMouse.y - m_ptMouse.y;
+//
+//	if (0.f != lDeltaX)
+//	{
+//		m_pTransform->Turn(_float3(0.f,1.f,0.f), fTimeDelta * lDeltaX);
+//	}
+//
+//	if (0.f != lDeltaY)
+//	{
+//		m_pTransform->Turn(m_pTransform->Get_State(CTransform::STATE_RIGHT), fTimeDelta * lDeltaY);
+//	}
+//
+//	m_ptMouse = ptMouse;
+//}
+
+HRESULT CMonster::Set_RenderState()
+{
+	/*if (FAILED(m_pGraphic_Device->SetSamplerState(0,D3DSAMP_MINFILTER, D3DTEXF_POINT)))
+	{
+		MSG_BOX(TEXT("Failed to SetSamplerState : D3DSAMP_MINFILTER"));
+		return E_FAIL;
+	}
+	if (FAILED(m_pGraphic_Device->SetSamplerState(0, D3DSAMP_MAGFILTER, D3DTEXF_POINT)))
+	{
+		MSG_BOX(TEXT("Failed to SetSamplerState : D3DSAMP_MAGFILTER"));
+		return E_FAIL;
+	}
+	if (FAILED(m_pGraphic_Device->SetSamplerState(0, D3DSAMP_MIPFILTER, D3DTEXF_POINT)))
+	{
+		MSG_BOX(TEXT("Failed to SetSamplerState : D3DSAMP_MIPFILTER"));
+		return E_FAIL;
+	}*/
+
+	if (FAILED(m_pGraphic_Device->SetRenderState(D3DRS_ALPHATESTENABLE, TRUE)))
+	{
+		MSG_BOX(TEXT("Failed to SetRenderState : D3DRS_ALPHATESTENABLE"));
+		return E_FAIL;
+	}
+	if (FAILED(m_pGraphic_Device->SetRenderState(D3DRS_ALPHAREF, 128)))
+	{
+		MSG_BOX(TEXT("Failed to SetRenderState : D3DRS_ALPHAREF"));
+		return E_FAIL;
+	}
+	if (FAILED(m_pGraphic_Device->SetRenderState(D3DRS_ALPHAFUNC, D3DCMP_GREATER)))
+	{
+		MSG_BOX(TEXT("Failed to SetRenderState : D3DRS_ALPHAFUNC"));
+		return E_FAIL;
+	}
+	return S_OK;
+}
+
+HRESULT CMonster::Reset_RenderState()
+{
+	if (FAILED(m_pGraphic_Device->SetRenderState(D3DRS_ALPHATESTENABLE, FALSE)))
+	{
+		MSG_BOX(TEXT("Failed to SetRenderState : D3DRS_ALPHATESTENABLE"));
+		return E_FAIL;
+	}
+
+	/*if (FAILED(m_pGraphic_Device->SetSamplerState(0, D3DSAMP_MINFILTER, D3DTEXF_LINEAR)))
+	{
+		MSG_BOX(TEXT("Failed to SetSamplerState : D3DSAMP_MINFILTER"));
+		return E_FAIL;
+	}
+	if (FAILED(m_pGraphic_Device->SetSamplerState(0, D3DSAMP_MAGFILTER, D3DTEXF_LINEAR)))
+	{
+		MSG_BOX(TEXT("Failed to SetSamplerState : D3DSAMP_MAGFILTER"));
+		return E_FAIL;
+	}
+	if (FAILED(m_pGraphic_Device->SetSamplerState(0, D3DSAMP_MIPFILTER, D3DTEXF_LINEAR)))
+	{
+		MSG_BOX(TEXT("Failed to SetSamplerState : D3DSAMP_MIPFILTER"));
+		return E_FAIL;
+	}*/
+	return S_OK;
+}
+
+void CMonster::SetUp_BillBoard()
+{
+	//CTransform* pCameraTransformCom = dynamic_cast<CTransform*>(m_pGameInstance->Get_Component(LEVEL_GAMEPLAY, TEXT("Layer_Camera_Free"), g_strTransformTag));
+	CTransform* pCameraTransformCom = dynamic_cast<CTransform*>(m_pGameInstance->Get_Component(LEVEL_GAMEPLAY, TEXT("Layer_Camera_Player"), g_strTransformTag));
+	
+	if (nullptr == pCameraTransformCom)
+	{
+		MSG_BOX(TEXT("nullptr == pCameraTransformCom : CMonster::SetUp_BillBoard()"));
+		return;
+	}
+
+	const _float4x4 pCameraWorldMatrix = *pCameraTransformCom->Get_WorldMatrix();
+
+
+	_float3 vScale = m_pTransform->Get_Scale();
+
+	m_pTransform->Set_State(CTransform::STATE_RIGHT, *D3DXVec3Normalize((_float3*)&pCameraWorldMatrix.m[CTransform::STATE_RIGHT][0], (_float3*)&pCameraWorldMatrix.m[CTransform::STATE_RIGHT][0])  * vScale.x);
+	//m_pTransform->Set_State(CTransform::STATE_UP, *D3DXVec3Normalize((_float3*)&pCameraWorldMatrix.m[CTransform::STATE_UP][0], (_float3*)&pCameraWorldMatrix.m[CTransform::STATE_UP][0]) * vScale.y);
+	m_pTransform->Set_State(CTransform::STATE_LOOK, *D3DXVec3Normalize((_float3*)&pCameraWorldMatrix.m[CTransform::STATE_LOOK][0], (_float3*)&pCameraWorldMatrix.m[CTransform::STATE_LOOK][0]) * vScale.z);
+	
+	/*m_pTransform->Set_State(CTransform::STATE_RIGHT, *(_float3*)&pCameraWorldMatrix.m[CTransform::STATE_RIGHT][0]);
+	m_pTransform->Set_State(CTransform::STATE_LOOK, *(_float3*)&pCameraWorldMatrix.m[CTransform::STATE_LOOK][0]);*/
+}
+
+void CMonster::Look_Camera_Fixed_Y_Axis()
+{
+	//CTransform* pCameraTransformCom = dynamic_cast<CTransform*>(m_pGameInstance->Get_Component(LEVEL_GAMEPLAY, TEXT("Layer_Camera_Free"), g_strTransformTag));
+	CTransform* pCameraTransformCom = dynamic_cast<CTransform*>(m_pGameInstance->Get_Component(LEVEL_GAMEPLAY, TEXT("Layer_Camera_Player"), g_strTransformTag));
+
+	if (nullptr == pCameraTransformCom)
+	{
+		MSG_BOX(TEXT("nullptr == pCameraTransformCom : CMonster::SetUp_BillBoard()"));
+		return;
+	}
+
+	const _float4x4 pCameraWorldMatrix = *pCameraTransformCom->Get_WorldMatrix();
+	_float3 vCameraPos = pCameraTransformCom->Get_State(CTransform::STATE_POSITION);
+
+	_float3 vScale = m_pTransform->Get_Scale();
+	
+	//_float3 vLook = vCameraPos - m_pTransform->Get_State(CTransform::STATE_POSITION);
+	_float3 vLook = m_pTransform->Get_State(CTransform::STATE_POSITION) - vCameraPos;
+	//vLook = *D3DXVec3Normalize(&vLook, &vLook) * vScale.z;
+	_float3 vUp = {0.f,1.f,0.f};
+	vUp *= vScale.y;
+	_float3 vRight = *D3DXVec3Cross(&vRight,&vUp,&vLook);
+	vRight = *D3DXVec3Normalize(&vRight, &vRight) * vScale.x;
+	vLook = *D3DXVec3Cross(&vLook, &vRight, &vUp);
+	vLook = *D3DXVec3Normalize(&vLook, &vLook) * vScale.z;
+
+	m_pTransform->Set_State(CTransform::STATE_RIGHT, vRight);
+	m_pTransform->Set_State(CTransform::STATE_UP, vUp);
+	m_pTransform->Set_State(CTransform::STATE_LOOK, vLook);
+
+
+}
+
+
+CMonster* CMonster::Create(LPDIRECT3DDEVICE9 pGraphic_Device)
+{
+	CMonster* pInstance = new CMonster(pGraphic_Device);
+	if (FAILED(pInstance->Initialize_Prototype()))
+	{
+		MSG_BOX(TEXT("Faild to Created : CMonster"));
+
+		Safe_Release(pInstance);
+	}
+
+	return pInstance;
+}
+
+CGameObject* CMonster::Clone(void* pArg)
+{
+	CMonster* pInstance = new CMonster(*this);
+	if (FAILED(pInstance->Initialize(pArg)))
+	{
+		MSG_BOX(TEXT("Faild to Cloned : CMonster"));
+
+		Safe_Release(pInstance);
+	}
+
+	return pInstance;
+}
+
+void CMonster::Free()
+{
+	Safe_Release(m_pVIBuffer_Com);
+	Safe_Release(m_pTextureCom);
+
+	//콜라이더 실험 BEGIN
+	Safe_Release(m_pCollider_Com);
+	//콜라이더 실험 END.
+
+	__super::Free();
+}

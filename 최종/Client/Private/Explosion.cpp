@@ -1,0 +1,210 @@
+#include "pch.h"
+#include "Explosion.h"
+#include "GameInstance.h"
+
+CEffect_Explosion::CEffect_Explosion(LPDIRECT3DDEVICE9 pGraphic_Device) :
+	CEffect_Base(pGraphic_Device)
+{
+}
+
+CEffect_Explosion::CEffect_Explosion(const CEffect_Explosion& rhs) :
+	CEffect_Base(rhs)
+{
+}
+
+HRESULT CEffect_Explosion::Initialize_Prototype()
+{
+	if (FAILED(__super::Initialize_Prototype()))
+	{
+		MSG_BOX(TEXT("Failed to Initialize_Prototype : __super,CEffect_Explosion"));
+		return E_FAIL;
+	}
+
+	return S_OK;
+}
+
+HRESULT CEffect_Explosion::Initialize(void* pArg)
+{
+	if (FAILED(__super::Initialize(pArg)))
+	{
+		MSG_BOX(TEXT("Failed to Initialize : __super,CEffect_Explosion"));
+		return E_FAIL;
+	}
+
+	if (FAILED(Add_Components()))
+	{
+		MSG_BOX(TEXT("Failed to Add_Components : __super,CEffect_Explosion"));
+		return E_FAIL;
+	}
+
+	//m_pTransform->Set_State(CTransform::STATE_POSITION, _float3(rand() % 10, 5.f, rand() % 10));
+	return S_OK;
+}
+
+_uint CEffect_Explosion::Tick(_float fTimeDelta)
+{
+	if (LEVEL_LOADING == m_pGameInstance->Get_Level()/* || LEVEL_1945 == m_pGameInstance->Get_Level()*/)
+		return 0;
+
+	if (0.f <= m_fLifeTime)
+		m_fLifeTime -= fTimeDelta;
+
+
+
+	m_fFrame += m_fMaxFrame * fTimeDelta;
+	if (m_fMaxFrame <= m_fFrame)
+		m_fFrame = 0.f;
+
+	SetUp_BillBoard();
+	
+	__super::Tick(fTimeDelta);
+
+	return OBJECT_NOTHING;
+}
+
+void CEffect_Explosion::Late_Tick(_float fTimeDelta)
+{
+	if (LEVEL_LOADING == m_pGameInstance->Get_Level()/* || LEVEL_1945 == m_pGameInstance->Get_Level()*/)
+		return;
+
+	if (m_fLifeTime < 0.f)
+		return;
+
+	__super::Late_Tick(fTimeDelta);
+
+	m_pGameInstance->Add_RenderObject(CRenderer::RENDER_NONBLEND, this);
+}
+
+HRESULT CEffect_Explosion::Render()
+{
+	if (LEVEL_LOADING == m_pGameInstance->Get_Level()/* || LEVEL_1945 == m_pGameInstance->Get_Level()*/)
+		return 0;
+
+	if (m_fLifeTime < 0.f)
+		return S_OK;
+
+	if (FAILED(m_pTransform->Bind_WorldMatrix()))
+	{
+		MSG_BOX(TEXT("Failed to Bind_WorldMatrix : Render"));
+		return E_FAIL;
+	}
+	if (FAILED(m_pTextureCom->Bind_Texture(0, (_uint)m_fFrame)))
+	{
+		MSG_BOX(TEXT("Failed to Bind_Texture : Render"));
+		return E_FAIL;
+	}
+	if (FAILED(Set_RenderState()))
+	{
+		MSG_BOX(TEXT("Failed to Set_RenderState : Render"));
+		return E_FAIL;
+	}
+	if (FAILED(m_pVIBuffer_Com->Render()))
+	{
+		MSG_BOX(TEXT("Failed to Render : Render"));
+		return E_FAIL;
+	}
+	if (FAILED(Reset_RenderState()))
+	{
+		MSG_BOX(TEXT("Failed to Reset_RenderState : Render"));
+		return E_FAIL;
+	}
+
+
+	return S_OK;
+}
+
+HRESULT CEffect_Explosion::Add_Components()
+{	
+	/* For.Com_VIBuffer */
+	if (FAILED(__super::Add_Component(LEVEL_STATIC, TEXT("Prototype_Component_VIBuffer_Rect"), TEXT("Com_VIBuffer"), reinterpret_cast<CComponent**>(&m_pVIBuffer_Com))))
+	{
+		MSG_BOX(TEXT("Failed to Prototype_Component_VIBuffer_Rect : Add_Components"));
+		return E_FAIL;
+	}
+
+	/* For.Com_Texture */
+	if (FAILED(__super::Add_Component(LEVEL_STATIC, TEXT("Prototype_Component_Texture_Effect_Explosion"), TEXT("Com_Texture"), reinterpret_cast<CComponent**>(&m_pTextureCom))))
+	{
+		MSG_BOX(TEXT("Failed to Prototype_Component_Texture_Effect_Explosion : Add_Components"));
+		return E_FAIL;
+	}
+
+	/* For.Com_Texture */
+	/*if (FAILED(__super::Add_Component(LEVEL_TUTORIAL, TEXT("Prototype_Component_Texture_Effect_Explosion"), TEXT("Com_Texture"), reinterpret_cast<CComponent**>(&m_pTextureCom))))
+	{
+		MSG_BOX(TEXT("Failed to Prototype_Component_Texture_Effect_Explosion : Add_Components"));
+		return E_FAIL;
+	}*/
+	return S_OK;
+}
+
+HRESULT CEffect_Explosion::Set_RenderState()
+{
+	m_pGraphic_Device->SetRenderState(D3DRS_ALPHATESTENABLE, TRUE);
+	m_pGraphic_Device->SetRenderState(D3DRS_ALPHAREF, 20);
+	m_pGraphic_Device->SetRenderState(D3DRS_ALPHAFUNC, D3DCMP_GREATER);
+	return S_OK;
+}
+
+HRESULT CEffect_Explosion::Reset_RenderState()
+{
+	m_pGraphic_Device->SetRenderState(D3DRS_ALPHATESTENABLE, FALSE);
+	return S_OK;
+}
+
+void CEffect_Explosion::SetUp_BillBoard()
+{
+	//CTransform* pCameraTransformCom = dynamic_cast<CTransform*>(m_pGameInstance->Get_Component(g_eLevel, TEXT("Layer_Camera_Player"), g_strTransformTag));
+	if (nullptr == m_pCameraTransform)
+	{
+		m_pCameraTransform = dynamic_cast<CTransform*>(m_pGameInstance->Get_Component(LEVEL_STATIC, TEXT("Layer_Camera_Player"), g_strTransformTag));
+		if (nullptr != m_pCameraTransform)
+			Safe_AddRef(m_pCameraTransform);
+	}
+
+	if (nullptr == m_pCameraTransform)
+	{
+		MSG_BOX(TEXT("nullptr == m_pCameraTransformCom : CEffect_Explosion::SetUp_BillBoard()"));
+		return;
+	}
+
+	const _float4x4 pCameraWorldMatrix = *m_pCameraTransform->Get_WorldMatrix();
+
+	_float3 vScale = m_pTransform->Get_Scale();
+
+	m_pTransform->Set_State(CTransform::STATE_RIGHT, *D3DXVec3Normalize((_float3*)&pCameraWorldMatrix.m[CTransform::STATE_RIGHT][0], (_float3*)&pCameraWorldMatrix.m[CTransform::STATE_RIGHT][0]) * vScale.x);
+	m_pTransform->Set_State(CTransform::STATE_LOOK, *D3DXVec3Normalize((_float3*)&pCameraWorldMatrix.m[CTransform::STATE_LOOK][0], (_float3*)&pCameraWorldMatrix.m[CTransform::STATE_LOOK][0]) * vScale.z);
+
+}
+
+CEffect_Explosion* CEffect_Explosion::Create(LPDIRECT3DDEVICE9 pGraphic_Device)
+{
+	CEffect_Explosion* pInstance = new CEffect_Explosion(pGraphic_Device);
+	if (FAILED(pInstance->Initialize_Prototype()))
+	{
+		MSG_BOX(TEXT("Faild to Created : CEffect_Explosion"));
+
+		Safe_Release(pInstance);
+	}
+
+	return pInstance;
+}
+
+CGameObject* CEffect_Explosion::Clone(void* pArg)
+{
+	CEffect_Explosion* pInstance = new CEffect_Explosion(*this);
+	if (FAILED(pInstance->Initialize(pArg)))
+	{
+		MSG_BOX(TEXT("Faild to Cloned : CEffect_Explosion"));
+
+		Safe_Release(pInstance);
+	}
+
+	return pInstance;
+}
+
+void CEffect_Explosion::Free()
+{
+	Safe_Release(m_pCameraTransform);
+	__super::Free();
+}

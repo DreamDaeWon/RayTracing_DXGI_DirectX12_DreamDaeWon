@@ -1,0 +1,55 @@
+#pragma once
+#include "Component.h"
+
+BEGIN(Engine)
+
+
+/* Vertex, Index에 대한 공간을 할당한다. */
+/* 할당한 공간을 가지고 있는다. */
+/* 이 공간에 있는 정점과 인덱스를 이용하여 화면에 그려낸다. */
+
+class ENGINE_DLL CVIBuffer abstract: public CComponent
+{
+protected:
+	CVIBuffer(LPDIRECT3DDEVICE9 pGraphic_Device);
+	CVIBuffer(const CVIBuffer& rhs);
+	virtual ~CVIBuffer() = default;
+
+
+public:
+	virtual HRESULT Initialize_Prototype() override;
+	virtual HRESULT Initialize(void* pArg) override;
+	virtual HRESULT Render();
+
+public:
+	_float3 Compute_Picking(class CTransform* pTransform);
+
+
+protected :
+	HRESULT Create_VertexBuffer();
+	HRESULT Create_IndexBuffer();
+
+
+protected:
+	LPDIRECT3DVERTEXBUFFER9		m_pVB = { nullptr };
+	_uint						m_iVertexStride = { 0 }; /* 정점하나의 크기(Byte) */
+	_uint						m_iNumVertices = { 0 };  /* 정점의 갯수*/
+	_ulong						m_dwFVF = { 0 };		/* 정점이 담고 있는 벡터의 종류를 나타냄 */
+	_ulong						m_dwPrimitive = { 0 };		/* 폴리곤 개수 */
+
+	LPDIRECT3DINDEXBUFFER9		m_pIB = { nullptr };
+	_uint						m_iIndexStride = { 0 }; /* 인덱스 하나의 크기(Byte) */
+	_uint						m_iNumIndices = { 0 };  /* 인덱스의 갯수*/
+	D3DFORMAT					m_eIndexFormat = {};
+
+	//터레인에 있던거 옮겨옴.
+	_float3* m_pVerticesPos = { nullptr };
+	void* m_pIndicesInfo = { nullptr };
+	
+
+public:
+	virtual CComponent* Clone(void* pArg) = 0;
+	virtual void Free() override;
+};
+
+END

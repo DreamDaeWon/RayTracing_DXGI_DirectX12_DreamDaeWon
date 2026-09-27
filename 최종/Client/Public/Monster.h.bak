@@ -1,0 +1,68 @@
+#pragma once
+#include "LandObject.h"
+#include "Client_Defines.h"
+
+
+BEGIN(Engine)
+class CVIBuffer_Rect;
+class CTexture;
+//콜라이더 실험 BEGIN.
+class CCollider_Rect;
+//콜라이더 실험 END.
+END
+
+BEGIN(Client)
+
+class CMonster final: public CLandObject
+{
+public:
+	typedef struct tagMonster_Desc : public CLandObject::LANDOBJECT_DESC {
+
+	}MONSTER_DESC;
+
+private:
+	CMonster(LPDIRECT3DDEVICE9 pGraphic_Device);
+	CMonster(const CMonster& rhs);
+	virtual ~CMonster() = default;
+
+public:
+	virtual HRESULT Initialize_Prototype() override;
+	virtual HRESULT Initialize(void* pArg) override;
+	virtual void Tick(_float fTimeDelta) override;
+	virtual void Late_Tick(_float fTimeDelta) override;
+	virtual HRESULT Render() override;
+
+public:
+	void Return_Look_Position(_float3* pvLook, _float3* pvPosition); // 현재 보는 곳과 위치를 알려주는 함수
+	_float3 Return_ViewPort_Pos(); // 뷰 포트 상의 현재 위치를 알려주는 함수
+
+private:
+	HRESULT Add_Components();
+	HRESULT Set_RenderState();
+	HRESULT Reset_RenderState();
+	void SetUp_BillBoard();
+	void Look_Camera_Fixed_Y_Axis();
+	
+	void Chase_Player(_float fTimeDelta);
+
+//private:
+//	void Mouse_Axis_Turn(_float fTimeDelta);
+
+
+private:
+	CTexture*		m_pTextureCom = { nullptr };
+	CVIBuffer_Rect* m_pVIBuffer_Com = { nullptr };
+
+	//콜라이더 실험 BEGIN.
+	CCollider_Rect* m_pCollider_Com = { nullptr };
+	//콜라이더 실험 END.
+
+
+
+public:
+	static CMonster* Create(LPDIRECT3DDEVICE9 pGraphic_Device);
+	virtual CGameObject* Clone(void* pArg) override;
+	virtual void Free() override;
+};
+
+END

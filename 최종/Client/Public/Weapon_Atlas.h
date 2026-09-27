@@ -1,0 +1,54 @@
+#pragma once
+#include "Weapon.h"
+
+#define ATLAS_RIHGT_VIEW_RIGHT 0.06f
+#define ATLAS_RIHGT_VIEW_UP 0.02f
+#define ATLAS_RIHGT_VIEW_BACK 0.1f
+#define ATLAS_SHOOTING_TERM 0.7f
+#define ATLAS_SHOOTING_GROUP_NOMAL 6.f
+#define ATLAS_SHOOTING_GROUP_EX 3.f
+
+
+BEGIN(Engine)
+class CTexture;
+class CVIBuffer_Rect;
+END
+
+BEGIN(Client)
+/* 총 이미지 분석
+0-6 등에 매달고 있을 때 사용하는 이미지
+12-17?  조준 했을 때 반동표현하는 이미지
+*/
+class CWeapon_Atlas final: public CWeapon
+{
+//public:
+//	typedef struct tagEffectSplatDesc : public CEffect_Base::EFFECT_BASE_DESC {
+//
+//	}EFFECT_SPLAT_DESC;
+
+public:
+	virtual HRESULT Initialize_Prototype() override;
+	virtual HRESULT Initialize(void* pArg) override;
+	virtual HRESULT Clone_Bullet() override;
+
+private:
+	CWeapon_Atlas(LPDIRECT3DDEVICE9 pGraphic_Device);
+	CWeapon_Atlas(const CWeapon_Atlas& rhs);
+	virtual _uint Tick(_float fTimeDelta) override;
+	virtual ~CWeapon_Atlas() = default;
+
+public:
+	void Shot_Bullet();
+
+private:
+	HRESULT Add_Components();
+	class CEffect_Splat_Orange* m_pEffect = { nullptr };
+	class CEffect_Orange_Circle* m_pCircleEffect = { nullptr };
+
+public:
+	static CWeapon_Atlas* Create(LPDIRECT3DDEVICE9 pGraphic_Device);
+	virtual CGameObject* Clone(void* pArg);
+	virtual void Free() override;
+};
+
+END

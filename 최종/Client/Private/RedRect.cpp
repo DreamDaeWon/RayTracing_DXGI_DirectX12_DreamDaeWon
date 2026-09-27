@@ -1,0 +1,308 @@
+#include "pch.h"
+#include "GameInstance.h"
+#include "RedRect.h"
+#include "SteamAttack.h"
+#include "BossLayser.h"
+
+CRedRect::CRedRect(LPDIRECT3DDEVICE9 pGraphic_Device)
+    : CLandObject(pGraphic_Device)
+{
+}
+
+CRedRect::CRedRect(const CRedRect& rhs)
+    : CLandObject(rhs)
+{
+}
+
+HRESULT CRedRect::Initialize_Prototype()
+{
+    if (FAILED(__super::Initialize_Prototype()))
+    {
+        MSG_BOX(TEXT("Failed to Initialize_Prototype : __super,CRedCircle"));
+        return E_FAIL;
+    }
+
+    return S_OK;
+}
+
+HRESULT CRedRect::Initialize(void* pArg)
+{
+	if (pArg != nullptr)
+	{
+		RED_RECT_DESC* pRedRectDesc = (RED_RECT_DESC*)pArg;
+		m_vPos = pRedRectDesc->vPosition;
+		m_vScale = pRedRectDesc->vScale;
+		m_iDir = pRedRectDesc->iDir;
+		m_fSetLifeTime = pRedRectDesc->fLifeTime;
+		m_bDead = pRedRectDesc->bDead;
+
+		// 랜드 오브젝트 정보 받아오기
+		LANDOBJECT_DESC* pLandObjectDesc = (LANDOBJECT_DESC*)pArg;
+		pLandObjectDesc->fSpeedPerSec = 1.f;
+		pLandObjectDesc->fRotationPerSec = 1.f;
+		//m_fLifeTime = pLandObjectDesc->fdelayTime;
+	}
+
+	if (FAILED(__super::Initialize(pArg)))
+	{
+
+		MSG_BOX(TEXT("Failed to Initialize : __super,CRedCircle"));
+		return E_FAIL;
+	}
+
+	if (FAILED(Add_Components()))
+	{
+		MSG_BOX(TEXT("Failed to Add_Components : __super,CRedCircle"));
+		return E_FAIL;
+	}
+
+	m_pTransform->Set_State(CTransform::STATE_POSITION, m_vPos);
+	m_pTransform->Turn(_float3(1.f, 0.f, 0.f), D3DXToRadian(90.f));
+	m_pTransform->Set_Scale(m_vScale);
+
+
+	if (g_eLevel == LEVEL_1945)
+	{
+		
+		return S_OK;
+	}
+	
+	SteamAttack();
+
+	return S_OK;
+}
+
+void CRedRect::InitializeDW(void* pArg)
+{
+	RED_RECT_DESC* pRedRectDesc = (RED_RECT_DESC*)pArg;
+	m_vPos = pRedRectDesc->vPosition;
+	m_vScale = pRedRectDesc->vScale;
+	m_iDir = pRedRectDesc->iDir;
+
+	m_pTransform->Set_State(CTransform::STATE_POSITION, m_vPos);
+	m_pTransform->Set_Scale(m_vScale);
+}
+
+_uint CRedRect::Tick(_float fTimeDelta)
+{
+	if (m_bDead)
+		return OBJECT_NOTHING;
+
+	if (0.f <= m_fLifeTime)
+		m_fLifeTime -= fTimeDelta;
+
+	__super::SetUp_OnTerrain(0.1f);
+
+	__super::Tick(fTimeDelta);
+	return OBJECT_NOTHING;
+}
+
+void CRedRect::Late_Tick(_float fTimeDelta)
+{
+	if (0.f > m_fLifeTime && m_bDead == false)
+	{
+		if(g_eLevel == LEVEL_1945)
+		{
+			LaserAttak(m_iDir);
+			m_bDead = true;
+
+			__super::Late_Tick(fTimeDelta);
+
+			m_pGameInstance->Add_RenderObject(CRenderer::RENDER_BLEND, this);
+			return;
+		}
+		m_pSteamAttack->Set_Up();
+		m_bDead = true;
+	}
+
+	if (m_bDead)
+		return;
+
+	__super::Late_Tick(fTimeDelta);
+
+	m_pGameInstance->Add_RenderObject(CRenderer::RENDER_BLEND, this);
+}
+
+HRESULT CRedRect::Render()
+{
+	if (m_bDead)
+		return S_OK;
+
+	if (FAILED(m_pTransform->Bind_WorldMatrix()))
+	{
+		MSG_BOX(TEXT("Failed to Bind_WorldMatrix : Render"));
+		return E_FAIL;
+	}
+	if (FAILED(m_pTextureCom->Bind_Texture(0, 0)))
+	{
+		MSG_BOX(TEXT("Failed to Bind_Texture : Render"));
+		return E_FAIL;
+	}
+	//m_pGraphic_Device->SetRenderState(D3DRS_FILLMODE, D3DFILL_WIREFRAME);
+	if (FAILED(Set_RenderState()))
+	{
+		MSG_BOX(TEXT("Failed to Set_RenderState : Render"));
+		return E_FAIL;
+	}
+	if (FAILED(m_pVIBuffer_Com->Render()))
+	{
+		MSG_BOX(TEXT("Failed to Render : Render"));
+		return E_FAIL;
+	}
+	if (FAILED(Reset_RenderState()))
+	{
+		MSG_BOX(TEXT("Failed to Reset_RenderState : Render"));
+		return E_FAIL;
+	}
+
+
+	return S_OK;
+}
+
+HRESULT CRedRect::Add_Components()
+{
+	/* For.Com_VIBuffer */
+	if (FAILED(__super::Add_Component(LEVEL_STATIC, TEXT("Prototype_Component_VIBuffer_Rect"), TEXT("Com_VIBuffer"), reinterpret_cast<CComponent**>(&m_pVIBuffer_Com))))
+	{
+		MSG_BOX(TEXT("Failed to Prototype_Component_VIBuffer_Rect : Add_Components"));
+		return E_FAIL;
+	}
+
+	/* For.Com_Texture */
+	if (FAILED(__super::Add_Component(g_eLevel, TEXT("Prototype_Component_Texture_RedRect"), TEXT("Com_Texture"), reinterpret_cast<CComponent**>(&m_pTextureCom))))
+	{
+		MSG_BOX(TEXT("Failed to Prototype_Component_Texture_RedRect : Add_Components"));
+		return E_FAIL;
+	}
+	return S_OK;
+}
+
+HRESULT CRedRect::Set_RenderState()
+{
+	if (FAILED(m_pGraphic_Device->SetRenderState(D3DRS_ALPHABLENDENABLE, TRUE)))
+	{
+		MSG_BOX(TEXT("Failed to SetRenderState : D3DRS_ALPHABLENDENABLE"));
+		return E_FAIL;
+	}
+	if (FAILED(m_pGraphic_Device->SetRenderState(D3DRS_SRCBLEND, D3DBLEND_SRCALPHA)))
+	{
+		MSG_BOX(TEXT("Failed to SetRenderState : D3DRS_SRCBLEND"));
+		return E_FAIL;
+	}
+	if (FAILED(m_pGraphic_Device->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA)))
+	{
+		MSG_BOX(TEXT("Failed to SetRenderState : D3DRS_DESTBLEND"));
+		return E_FAIL;
+	}
+	if (FAILED(m_pGraphic_Device->SetRenderState(D3DRS_BLENDOP, D3DBLENDOP_ADD)))
+	{
+		MSG_BOX(TEXT("Failed to SetRenderState : D3DBLENDOP_ADD"));
+		return E_FAIL;
+	}
+
+	m_pGraphic_Device->SetRenderState(D3DRS_CULLMODE, D3DCULL_NONE);
+
+	return S_OK;
+}
+
+HRESULT CRedRect::Reset_RenderState()
+{
+	m_pGraphic_Device->SetRenderState(D3DRS_CULLMODE, D3DCULL_CCW);
+	if (FAILED(m_pGraphic_Device->SetRenderState(D3DRS_ALPHATESTENABLE, FALSE)))
+	{
+		MSG_BOX(TEXT("Failed to SetRenderState : D3DRS_ALPHATESTENABLE"));
+		return E_FAIL;
+	}
+
+	if (FAILED(m_pGraphic_Device->SetRenderState(D3DRS_ALPHABLENDENABLE, FALSE)))
+	{
+		MSG_BOX(TEXT("Failed to SetRenderState : D3DRS_ALPHABLENDENABLE"));
+		return E_FAIL;
+	}
+
+	return S_OK;
+}
+
+void CRedRect::SteamAttack()
+{
+	CSteamAttack::STEAMATTACK_DESC SteamAttackDesc = {};
+
+	SteamAttackDesc.pTerrainTranformCom = dynamic_cast<CTransform*>(m_pGameInstance->Get_Component(g_eLevel, TEXT("Layer_Terrain"), g_strTransformTag.c_str()));
+	SteamAttackDesc.pTerrainVIBufferCom = dynamic_cast<CVIBuffer_Terrain*>(m_pGameInstance->Get_Component(g_eLevel, TEXT("Layer_Terrain"), TEXT("Com_VIBuffer")));
+
+	//_float4x4 WorldMatrix = *m_pTransform->Get_WorldMatrix();
+
+	SteamAttackDesc.vPosition = m_pTransform->Get_State(CTransform::STATE_POSITION);
+	SteamAttackDesc.fLifeTime = 0.1f;
+
+	if (FAILED(m_pGameInstance->Add_Clone(LEVEL_NORMAL2, TEXT("Layer_SteamAttack"), TEXT("Prototype_GameObject_SteamAttack"), &SteamAttackDesc)))
+	{
+		MSG_BOX(TEXT("Failed to Add_Components ,CSteamAttack"));
+		return;
+	}
+
+	list<CGameObject*>* pList = m_pGameInstance->Get_List(LEVEL_NORMAL2, TEXT("Layer_SteamAttack"));
+
+	if (nullptr != pList)
+	{
+		auto iter = pList->end();
+		--iter;
+
+		m_pSteamAttack = dynamic_cast<CSteamAttack*>((*iter));
+		Safe_AddRef(m_pSteamAttack);
+	}
+}
+
+void CRedRect::LaserAttak(_uint _Dir)
+{
+	CTransform* pBossTransform = dynamic_cast<CTransform*>(m_pGameInstance->Get_Component(g_eLevel, TEXT("Layer_Boss"), TEXT("Com_Transform")));
+	CBossLayser::BOSS_LAYSER_DESC BossLayserDesc = {};
+	BossLayserDesc.fSpeedPerSec = 1.f;
+	BossLayserDesc.fRotationPerSec = 1.f;
+	BossLayserDesc.pTerrainTranformCom = dynamic_cast<CTransform*>(m_pGameInstance->Get_Component(LEVEL_1945, TEXT("Layer_Terrain"), g_strTransformTag.c_str()));
+	BossLayserDesc.pTerrainVIBufferCom = dynamic_cast<CVIBuffer_Terrain*>(m_pGameInstance->Get_Component(LEVEL_1945, TEXT("Layer_Terrain"), TEXT("Com_VIBuffer")));
+	BossLayserDesc.iDir = m_iDir;
+	BossLayserDesc.vPos = pBossTransform->Get_State(CTransform::STATE_POSITION);
+	//BossLayserDesc.vPos.y = 0.f;
+	
+	if (FAILED(m_pGameInstance->Add_Clone(LEVEL_1945, TEXT("Layer_Boss_Layser"), TEXT("Prototype_GameObject_BossBattleCruiser_Layser"), &BossLayserDesc)))
+	{
+		MSG_BOX(TEXT("Failed to Add_Components ,CSteamAttack"));
+		return;
+	}
+}
+
+CRedRect* CRedRect::Create(LPDIRECT3DDEVICE9 pGraphic_Device)
+{
+	CRedRect* pInstance = new CRedRect(pGraphic_Device);
+	if (FAILED(pInstance->Initialize_Prototype()))
+	{
+		MSG_BOX(TEXT("Faild to Created : CRedRect"));
+
+		Safe_Release(pInstance);
+	}
+
+	return pInstance;
+}
+
+CGameObject* CRedRect::Clone(void* pArg)
+{
+	CRedRect* pInstance = new CRedRect(*this);
+	if (FAILED(pInstance->Initialize(pArg)))
+	{
+		MSG_BOX(TEXT("Faild to Cloned : CRedRect"));
+
+		Safe_Release(pInstance);
+	}
+
+	return pInstance;
+}
+
+void CRedRect::Free()
+{
+	Safe_Release(m_pVIBuffer_Com);
+	Safe_Release(m_pTextureCom);
+	Safe_Release(m_pSteamAttack);
+
+	__super::Free();
+}

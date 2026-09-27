@@ -1,0 +1,131 @@
+#include "pch.h"
+#include "Roll.h"
+#include "GameInstance.h"
+#include"Player.h"
+
+CRoll::CRoll(LPDIRECT3DDEVICE9 pGraphic_Device) :
+	CPlayer_Skill(pGraphic_Device)
+{
+}
+
+CRoll::CRoll(const CRoll& rhs) :
+	CPlayer_Skill(rhs)
+{
+}
+
+HRESULT CRoll::Initialize_Prototype()
+{
+	if (FAILED(__super::Initialize_Prototype()))
+	{
+		MSG_BOX(TEXT("Failed to Initialize_Prototype : __super,CPlayer"));
+		return E_FAIL;
+	}
+	m_eID = SKILL_ROLL;
+	m_fCoolTime = 2.f;
+	m_fActTime = 0.4f;
+	m_fSP = 10;
+	return S_OK;
+}
+
+HRESULT CRoll::Initialize(void* pArg)
+{
+	if (FAILED(__super::Initialize(pArg)))
+	{
+		MSG_BOX(TEXT("Failed to Initialize : __super,CRoll"));
+		return E_FAIL;
+	}
+
+	if (FAILED(Add_Components()))
+	{
+		MSG_BOX(TEXT("Failed to Add_Components : __super,CRoll"));
+		return E_FAIL;
+	}
+
+	return S_OK;
+}
+
+_uint CRoll::Tick(_float fTimeDelta)
+{
+	__super::Tick(fTimeDelta);
+
+
+	Key_Input(fTimeDelta);
+
+	return 0;
+}
+
+void CRoll::Late_Tick(_float fTimeDelta)
+{
+	__super::Late_Tick(fTimeDelta);
+
+
+	m_pGameInstance->Add_RenderObject(CRenderer::RENDER_NONBLEND, this);
+}
+
+HRESULT CRoll::Render()
+{
+	return S_OK;
+}
+
+void CRoll::Key_Input(_float fTimeDelta)
+{
+	if (m_bActivate)
+	{
+		m_pPlayerTransform->Go_To_Dir(fTimeDelta * 1.4f, *m_pPlayerFrameLookVec);
+		dynamic_cast<CPlayer*>(m_pGameInstance->Get_Object(LEVEL_STATIC, TEXT("Layer_Player")))->Set_InvincibilityTime(m_fActTime);
+		dynamic_cast<CPlayer*>(m_pGameInstance->Get_Object(LEVEL_STATIC, TEXT("Layer_Player")))->Set_Invincibility(true);
+	}
+}
+
+HRESULT CRoll::Add_Components()
+{
+	/* For.Com_VIBuffer */
+
+	return S_OK;
+}
+
+HRESULT CRoll::Set_RenderState()
+{
+	m_pGraphic_Device->SetRenderState(D3DRS_FILLMODE, D3DFILL_WIREFRAME);
+	m_pGraphic_Device->SetRenderState(D3DRS_CULLMODE, D3DCULL_NONE);
+
+	return S_OK;
+}
+
+HRESULT CRoll::Reset_RenderState()
+{
+	m_pGraphic_Device->SetRenderState(D3DRS_FILLMODE, D3DFILL_SOLID);
+	m_pGraphic_Device->SetRenderState(D3DRS_CULLMODE, D3DCULL_CCW);
+	return S_OK;
+}
+
+CRoll* CRoll::Create(LPDIRECT3DDEVICE9 pGraphic_Device)
+{
+	CRoll* pInstance = new CRoll(pGraphic_Device);
+	if (FAILED(pInstance->Initialize_Prototype()))
+	{
+		MSG_BOX(TEXT("Faild to Created : CRoll"));
+
+		Safe_Release(pInstance);
+	}
+
+	return pInstance;
+}
+
+CGameObject* CRoll::Clone(void* pArg)
+{
+	CRoll* pInstance = new CRoll(*this);
+	if (FAILED(pInstance->Initialize(pArg)))
+	{
+		MSG_BOX(TEXT("Faild to Cloned : CRoll"));
+
+		Safe_Release(pInstance);
+	}
+
+	return pInstance;
+}
+
+void CRoll::Free()
+{
+	__super::Free();
+}

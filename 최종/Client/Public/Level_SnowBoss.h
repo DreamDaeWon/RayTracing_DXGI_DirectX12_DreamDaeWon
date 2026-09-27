@@ -1,0 +1,43 @@
+#pragma once
+#include "Level.h"
+#include "Client_Defines.h"
+
+
+BEGIN(Client)
+
+class CLevel_SnowBoss final : public CLevel
+{
+private:
+	CLevel_SnowBoss(LPDIRECT3DDEVICE9 pGraphic_Device);
+	virtual ~CLevel_SnowBoss() = default;
+
+
+public:
+	virtual HRESULT Initialize() override;
+	virtual void Tick(_float fTimeDelta) override;
+	virtual HRESULT Render() override;
+
+private:
+	HRESULT Ready_Layer_BackGround(const wstring& strLayerTag);
+	HRESULT Ready_Layer_BackGround_Parsing();
+	HRESULT Ready_Layer_UI_Player(const wstring& strLayerTag);
+	HRESULT Ready_Layer_Camera_Free(const wstring& strLayerTag);
+	HRESULT Ready_Layer_UI_Boss(const wstring& strLayerTag, void* pArg = nullptr);
+	HRESULT Ready_Layer_Monster(const wstring& strLayerTag, void* pArg = nullptr);
+	HRESULT Ready_Land_Object();
+	HRESULT Ready_Layer_QAim(const wstring& strLayerTag);
+	HRESULT Ready_Layer_Effect(const wstring& strLayerTag);
+	HRESULT Ready_Layer_Blizzard(const wstring& strLayerTag);
+
+	void Load_Terrain();
+	void Load_Wall();
+	void Load_WallTerrain();
+
+private:
+	_uint m_iMonsterNum = { 0 };
+public:
+	static CLevel_SnowBoss* Create(LPDIRECT3DDEVICE9 pGraphic_Device);
+	virtual void Free() override;
+};
+
+END

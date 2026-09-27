@@ -1,0 +1,858 @@
+#include "pch.h"
+#include "Monster_Red_Fly.h"
+#include "GameInstance.h"
+#include "Weapon.h"
+#include "State.h"
+#include "Camera_Player_DW.h"
+#include "Red_Monster_Bullet.h"
+#include <Player.h>
+
+CMonster_Red_Fly::CMonster_Red_Fly(LPDIRECT3DDEVICE9 pGraphic_Device) :
+	CLandObject(pGraphic_Device)
+{
+}
+
+CMonster_Red_Fly::CMonster_Red_Fly(const CMonster_Red_Fly& rhs) :
+	CLandObject(rhs)
+{
+}
+
+HRESULT CMonster_Red_Fly::Initialize_Prototype()
+{
+	if (FAILED(__super::Initialize_Prototype()))
+	{
+		MSG_BOX(TEXT("Failed to Initialize_Prototype : __super,CMonster_Red_Fly"));
+		return E_FAIL;
+	}
+
+	return S_OK;
+}
+
+HRESULT CMonster_Red_Fly::Initialize(void* pArg)
+{
+	
+
+	if (FAILED(__super::Initialize(pArg)))
+	{
+		MSG_BOX(TEXT("Failed to Initialize : __super,CMonster_Red_Fly"));
+		return E_FAIL;
+	}
+	
+	if (pArg != nullptr)
+	{
+		LANDOBJECT_DESC* pLandObjectDesc = (LANDOBJECT_DESC*)pArg;
+		pLandObjectDesc->fSpeedPerSec = 1.f;
+		pLandObjectDesc->fRotationPerSec = D3DXToRadian(90.f);
+		// 준수 추가
+		Set_Pos(pLandObjectDesc->vPos);
+		m_iMonsterType = pLandObjectDesc->iMonsterType;
+		
+	}
+
+	if (FAILED(Add_Components()))
+	{
+		MSG_BOX(TEXT("Failed to Add_Components : __super,CMonster_Red_Fly"));
+		return E_FAIL;
+	}
+
+	//m_pTransform->Set_State(CTransform::STATE_RIGHT, m_pTransform->Get_State(CTransform::STATE_RIGHT) * 5);
+	//m_pTransform->Set_State(CTransform::STATE_UP, m_pTransform->Get_State(CTransform::STATE_UP) * 5);
+	//m_pTransform->Set_State(CTransform::STATE_LOOK, m_pTransform->Get_State(CTransform::STATE_LOOK) * 5);
+
+	//m_pTransform->Set_State(CTransform::STATE_POSITION, _float3((_float)(rand() % 20), 0.5f, (_float)(rand() % 20)));
+	//TODO: 용수 콜라이더가 너무 커서 줄임
+	m_pCollider_Com[COLLIDER_RECT]->Set_Scale(_float3(0.5f, 0.8f, 1.f));
+	m_pCollider_Com[COLLIDER_CUBE_AABB]->Set_Scale(_float3(1.f, 1.f, 1.f));
+	m_pCollider_Com[COLLIDER_CUBE_AABB]->Update_Collider_Info(*m_pTransform->Get_WorldMatrix());
+
+
+	random_device rd;
+	mt19937 gen(rd());
+
+	random_device rdx;
+	mt19937 genx(rdx());
+
+	random_device rdz;
+	mt19937 genz(rdz());
+
+	uniform_int_distribution<_int> m_iIdleTime(1, 5);
+
+	uniform_int_distribution<_int> X(-100, 100);
+
+	uniform_int_distribution<_int> Z(-100, 100);
+
+	m_fIdleTime = (_float)m_iIdleTime(gen);
+
+	m_vMonsterLook.x = (_float)X(genx);
+	m_vMonsterLook.z = (_float)Z(genz);
+
+	return S_OK;
+}
+
+_uint CMonster_Red_Fly::Tick(_float fTimeDelta)
+{
+	if (LEVEL_LOADING == m_pGameInstance->Get_Level() || LEVEL_1945 == m_pGameInstance->Get_Level())
+		return 0;
+
+
+	m_fIdleAngle += 1.f;
+
+
+	if (m_bDead && m_bDeadShow)
+	{
+		return OBJECT_NOTHING;
+	}
+	if (m_eNowState != STATE_DEATH)
+	{
+		__super::SetUp_OnTerrain(2.f - (sinf(D3DXToRadian(m_fIdleAngle)) * m_fIdleDynamic));
+		__super::Tick(fTimeDelta);
+		CheckPlayer();
+	}
+	m_fTextureDir = Set_Texture_Monster_Dir(m_vMonsterLook);
+
+	Set_Render_Texture(fTimeDelta);
+
+	Do_State(fTimeDelta);
+
+	if (m_pGameInstance->Key_Down('K')) //타노스 버튼 // 죽을 때 설정해 주어야 하는 것
+	{
+		m_fTexture = 0.f;
+		m_fTime = 0.f;
+		m_eNowState = STATE_DEATH;
+		m_bDead = true;
+	}
+
+	m_pUI_Damage->Update_Position(Return_ViewPort_Pos(), Get_ViewZ());
+
+	//TODO: 용수 충돌처리 테스트
+	_float4x4 WorldMatrix = *m_pTransform->Get_WorldMatrix();
+	m_pCollider_Com[COLLIDER_RECT]->Update_Collider_Info(WorldMatrix);
+	m_pCollider_Com[COLLIDER_CUBE_AABB]->Update_Collider_Info(WorldMatrix);
+	return OBJECT_NOTHING;
+}
+
+void CMonster_Red_Fly::Late_Tick(_float fTimeDelta)
+{
+	if (LEVEL_LOADING == m_pGameInstance->Get_Level() || LEVEL_1945 == m_pGameInstance->Get_Level())
+		return;
+
+	if (m_bDead && m_bDeadShow)
+	{
+		return;
+	}
+	__super::Late_Tick(fTimeDelta);
+
+	SetUp_BillBoard();
+	//Look_Camera_Fixed_Y_Axis();
+	//충돌 처리
+	//기능 나를 제외한 오브젝트들을 순회하면서 충돌을 판단한다.
+	//몬스터끼리의 밀리는 건 스피어로 처리하자. 그리고 어디서 그걸 해줄지는 생각해봐야할듯.
+	if (STATE_DEATH != m_eNowState)
+	{
+		Collision_Bullet(fTimeDelta);
+		Collision_Wall();
+	}
+
+
+
+	if (m_eNowState == STATE_DEATH)
+	{
+		m_pGameInstance->Add_RenderObject(CRenderer::RENDER_BLEND, this);
+		return;
+	}
+
+	m_pGameInstance->Add_RenderObject(CRenderer::RENDER_NONBLEND, this);
+}
+
+HRESULT CMonster_Red_Fly::Render()
+{
+	if (LEVEL_LOADING == m_pGameInstance->Get_Level() || LEVEL_1945 == m_pGameInstance->Get_Level())
+		return S_OK;
+	//if (FAILED(__super::Render()))
+	//{
+	//	MSG_BOX(TEXT("Failed to Render : __super,CPlayer"));
+	//	return E_FAIL;
+	//}
+	if (m_bDead && m_bDeadShow)
+	{
+		return S_OK;
+	}
+	if (FAILED(m_pTransform->Bind_WorldMatrix()))
+	{
+		MSG_BOX(TEXT("Failed to Bind_WorldMatrix : Render"));
+		return E_FAIL;
+	}
+	if (FAILED(m_pTextureCom->Bind_Texture(0, (_uint)m_fTextureTotal))) // 첫번째 인자는 0 몇 번째 텍스쿠드좌표를 사용할 지?
+	{
+		MSG_BOX(TEXT("Failed to Bind_Texture : Render"));
+		return E_FAIL;
+	}
+	//m_pGraphic_Device->SetRenderState(D3DRS_FILLMODE, D3DFILL_WIREFRAME);
+	if (FAILED(Set_RenderState()))
+	{
+		MSG_BOX(TEXT("Failed to Set_RenderState : Render"));
+		return E_FAIL;
+	}
+	if (FAILED(m_pVIBuffer_Com->Render()))
+	{
+		MSG_BOX(TEXT("Failed to Render : Render"));
+		return E_FAIL;
+	}
+	if (FAILED(Reset_RenderState()))
+	{
+		MSG_BOX(TEXT("Failed to Reset_RenderState : Render"));
+		return E_FAIL;
+	}
+
+
+	return S_OK;
+}
+
+void CMonster_Red_Fly::Return_Look_Position(_float3* pvLook, _float3* pvPosition)
+{
+	*pvLook = m_pTransform->Get_State(CTransform::STATE_LOOK);
+	*pvPosition = m_pTransform->Get_State(CTransform::STATE_POSITION);
+}
+
+
+void CMonster_Red_Fly::Do_State(_float fTimeDelta)
+{
+	m_fTime += 1.f * fTimeDelta;
+
+	switch (m_eNowState)
+	{
+	case STATE_IDLE:
+		if ((m_fIdleTime) > m_fTime)
+		{
+			if (m_bCheckPlayer)
+			{
+				m_fTexture = 0.f;
+				m_eNowState = STATE_MOVE;
+				m_fTime = 0.f;
+			}
+		}
+		else
+		{
+			if (m_bCheckPlayer)
+			{
+				m_fTexture = 0.f;
+				m_eNowState = STATE_MOVE;
+				m_fTime = 0.f;
+			}
+			else
+			{
+				random_device rd;
+				mt19937 gen(rd());
+
+				random_device rdx;
+				mt19937 genx(rdx());
+
+				random_device rdz;
+				mt19937 genz(rdz());
+
+				uniform_int_distribution<_int> m_iIdleTime(1, 5);
+
+				uniform_int_distribution<_int> X(-100, 100);
+
+				uniform_int_distribution<_int> Z(-100, 100);
+
+				m_fIdleTime = (_float)m_iIdleTime(gen);
+
+				m_vMonsterLook.x = (_float)X(genx);
+				m_vMonsterLook.z = (_float)Z(genz);
+
+				random_device rdd;
+				mt19937 gend(rdd());
+				uniform_int_distribution<_int> Distance(1, 3);
+				m_fMoveDistance = (_float)Distance(gend);
+				m_eNowState = STATE_MOVE;
+			}
+		}
+
+		break;
+
+	case STATE_MOVE:
+		if (2.0f > m_fTime)
+		{
+			if (m_bCheckPlayer)
+			{
+				Chase_Player(fTimeDelta, 1.5f);
+			}
+			else
+			{
+				D3DXVec3Normalize(&m_vMonsterLook, &m_vMonsterLook);
+				m_pTransform->Set_State(CTransform::STATE_POSITION, _float3(m_pTransform->Get_State(CTransform::STATE_POSITION).x + (m_vMonsterLook.x * m_fMoveDistance * fTimeDelta),
+					m_pTransform->Get_State(CTransform::STATE_POSITION).y,
+					m_pTransform->Get_State(CTransform::STATE_POSITION).z + (m_vMonsterLook.z * m_fMoveDistance * fTimeDelta)));
+			}
+		}
+		else
+		{
+			m_fTexture = 0.f;
+			if (m_bCheckPlayer)
+			{
+				m_eNowState = STATE_ATTAK;
+			}
+			else
+			{
+				m_eNowState = STATE_IDLE;
+			}
+			m_fTime = 0.f;
+		}
+		break;
+
+	case STATE_ATTAK:
+		if (5.0f >= m_fTime)
+		{
+			if (m_fTime > (m_fAttakTime * (m_iAttakNum + 1)))
+			{
+				//총알 발사
+				Shot_Bullet();
+			}
+		}
+		else
+		{
+			m_iAttakNum = 0;
+			m_eNowState = STATE_IDLE;
+			m_fTexture = 0.f;
+			m_fTime = 0.f;
+		}
+		break;
+	case STATE_DEATH:
+		if (2.0f >= m_fTime)
+		{
+
+		}
+		else
+		{
+			m_fTexture = 0.f;
+			m_bDeadShow = true;
+			m_fTime = 0.f;
+		}
+		break;
+	case STATE_END:
+
+		break;
+
+	default:
+
+		break;
+	}
+}
+
+void CMonster_Red_Fly::Set_Render_Texture(_float fTimeDelta)
+{
+	// 상태에 따라 텍스쳐를 설정해준다.
+
+	if (m_eNowState == STATE_IDLE)
+	{
+		m_pTextureCom = m_pTextureIdle;
+		m_fTextureMaxPicture = 1.f;
+		m_fTextureSpeed = m_fTextureSpeed_Idle;
+		// 임시
+		//m_fTextureDir = 0;
+	}
+
+	if (m_eNowState == STATE_ATTAK)
+	{
+		m_pTextureCom = m_pTextureAttak;
+		m_fTextureMaxPicture = 3.f;
+		m_fTextureSpeed = m_fTextureSpeed_Attak;
+
+		// 임시
+		m_fTextureDir = 0;
+	}
+
+	if (m_eNowState == STATE_MOVE)
+	{
+		m_pTextureCom = m_pTextureIdle;
+		m_fTextureMaxPicture = 1.f;
+		m_fTextureSpeed = m_fTextureSpeed_Idle;
+
+		// 임시
+		//m_fTextureDir = 0;
+	}
+
+	if (m_eNowState == STATE_DEATH)
+	{
+		m_pTextureCom = m_pTextureDeath;
+		m_fTextureMaxPicture = 7.f;
+		m_fTextureSpeed = m_fTextureSpeed_Death;
+
+		// 임시
+		m_fTextureDir = 0;
+
+	}
+
+
+
+	// 시간에 따라 텍스쳐를 설정해 준다.
+	m_fTexture += m_fTextureMaxPicture * fTimeDelta * m_fTextureSpeed;
+	if ((_int)m_fTexture > (_int)m_fTextureMaxPicture)
+	{
+		m_fTexture = 0;
+	}
+
+
+	m_fTextureDir = m_fTextureDir * (m_fTextureMaxPicture + 1);
+
+
+	// 방향에 따라 텍스쳐를 설정해준다.
+	m_fTextureTotal = m_fTexture + m_fTextureDir;
+
+}
+
+void CMonster_Red_Fly::CheckPlayer()
+{
+	const CTransform* pPlayerTransform = dynamic_cast<CTransform*>(m_pGameInstance->Get_Component(LEVEL_STATIC, TEXT("Layer_Player"), TEXT("Com_Transform")));
+
+	_float3 fCheck = { pPlayerTransform->Get_State(CTransform::STATE_POSITION) - m_pTransform->Get_State(CTransform::STATE_POSITION) };
+
+	if (D3DXVec3Length(&fCheck) <= m_fCheckDestence)
+	{
+		m_vMonsterLook = fCheck;
+		m_bCheckPlayer = true;
+	}
+	else
+	{
+		m_bCheckPlayer = false;
+	}
+}
+
+HRESULT CMonster_Red_Fly::Add_Components()
+{	/* For.Com_VIBuffer */
+	if (FAILED(__super::Add_Component(LEVEL_STATIC, TEXT("Prototype_Component_VIBuffer_Rect"), TEXT("Com_VIBuffer"), reinterpret_cast<CComponent**>(&m_pVIBuffer_Com))))
+	{
+		MSG_BOX(TEXT("Failed to Prototype_Component_VIBuffer_Rect : Add_Components"));
+		return E_FAIL;
+	}
+
+
+	//State추가
+	CState::STATE_DESC StateDest = {};
+	StateDest.fCP = 1.f;
+	StateDest.fMaxHp = 75.f;
+
+	/* For. Com_State*/
+	if (FAILED(__super::Add_Component(LEVEL_STATIC, TEXT("Prototype_Component_State"), TEXT("Com_State"), reinterpret_cast<CComponent**>(&m_pState_Com), &StateDest)))
+	{
+		MSG_BOX(TEXT("Failed to Prototype_Component_State : Add_Components"));
+		return E_FAIL;
+	}
+
+	/* For.Com_Texture */
+	//if (FAILED(__super::Add_Component(LEVEL_TUTORIAL, TEXT("Prototype_Component_Texture_PlayerBack"), TEXT("Com_Texture"), reinterpret_cast<CComponent**>(&m_pTextureCom))))
+	//{
+	//	MSG_BOX(TEXT("Failed to Prototype_Component_Texture_PlayerBack : Add_Components"));
+	//	return E_FAIL;
+	//}
+
+	/* For.Com_Texture */
+	if (FAILED(__super::Add_Component(g_eLevel, TEXT("Prototype_Component_Texture_Red_Fly_Monster_Idle"), TEXT("Com_Texture_Idle"), reinterpret_cast<CComponent**>(&m_pTextureIdle))))
+	{
+		MSG_BOX(TEXT("Failed to Prototype_Component_Texture_Red_Fly_Monster_Idle : Add_Components"));
+		return E_FAIL;
+	}
+
+
+	if (FAILED(__super::Add_Component(g_eLevel, TEXT("Prototype_Component_Texture_Red_Fly_Monster_Attak"), TEXT("Com_Texture_Attak"), reinterpret_cast<CComponent**>(&m_pTextureAttak))))
+	{
+		MSG_BOX(TEXT("Failed to Prototype_Component_Texture_Red_Fly_Monster_Attak : Add_Components"));
+		return E_FAIL;
+	}
+	if (FAILED(__super::Add_Component(g_eLevel, TEXT("Prototype_Component_Texture_Red_Fly_Monster_Death"), TEXT("Com_Texture_Death"), reinterpret_cast<CComponent**>(&m_pTextureDeath))))
+	{
+		MSG_BOX(TEXT("Failed to Prototype_Component_Texture_Red_Fly_Monster_Death : Add_Components"));
+		return E_FAIL;
+	}
+	/* For.Com_Collider */
+	if (FAILED(__super::Add_Component(LEVEL_STATIC, TEXT("Prototype_Component_Collider_Rect"), TEXT("Com_Collider_Rect"), reinterpret_cast<CComponent**>(&m_pCollider_Com[COLLIDER_RECT]))))
+	{
+		MSG_BOX(TEXT("Failed to Prototype_Component_Collider_Rect : Add_Components"));
+		return E_FAIL;
+	}
+	if (FAILED(__super::Add_Component(LEVEL_STATIC, TEXT("Prototype_Component_Collider_Cube_AABB"), TEXT("Com_Collider_Cube_AABB"), reinterpret_cast<CComponent**>(&m_pCollider_Com[COLLIDER_CUBE_AABB]))))
+	{
+		MSG_BOX(TEXT("Failed to Prototype_Component_Collider_Cube_AABB : Add_Components"));
+		return E_FAIL;
+	}
+	if (FAILED(__super::Add_Component(LEVEL_STATIC, TEXT("Prototype_Component_Texture_Collider"), TEXT("Com_Texture_Collider"), reinterpret_cast<CComponent**>(&m_pTextureCollider))))
+	{
+		MSG_BOX(TEXT("Failed to Prototype_Component_Texture_Collider : Add_Components"));
+		return E_FAIL;
+	}
+
+	return S_OK;
+}
+
+
+HRESULT CMonster_Red_Fly::Set_RenderState()
+{
+	if (m_eNowState == STATE_DEATH)
+	{
+
+		if (FAILED(m_pGraphic_Device->SetRenderState(D3DRS_ALPHABLENDENABLE, TRUE)))
+		{
+			MSG_BOX(TEXT("Failed to SetRenderState : D3DRS_ALPHABLENDENABLE"));
+			return E_FAIL;
+		}
+		if (FAILED(m_pGraphic_Device->SetRenderState(D3DRS_SRCBLEND, D3DBLEND_SRCALPHA)))
+		{
+			MSG_BOX(TEXT("Failed to SetRenderState : D3DRS_SRCBLEND"));
+			return E_FAIL;
+		}
+		if (FAILED(m_pGraphic_Device->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA)))
+		{
+			MSG_BOX(TEXT("Failed to SetRenderState : D3DRS_DESTBLEND"));
+			return E_FAIL;
+		}
+		if (FAILED(m_pGraphic_Device->SetRenderState(D3DRS_BLENDOP, D3DBLENDOP_ADD)))
+		{
+			MSG_BOX(TEXT("Failed to SetRenderState : D3DBLENDOP_ADD"));
+			return E_FAIL;
+		}
+
+		m_pGraphic_Device->SetRenderState(D3DRS_CULLMODE, D3DCULL_NONE);
+		return S_OK;
+	}
+
+	if (FAILED(m_pGraphic_Device->SetSamplerState(0, D3DSAMP_MINFILTER, D3DTEXF_LINEAR)))
+	{
+		MSG_BOX(TEXT("Failed to SetSamplerState : D3DSAMP_MINFILTER"));
+		return E_FAIL;
+	}
+	if (FAILED(m_pGraphic_Device->SetSamplerState(0, D3DSAMP_MAGFILTER, D3DTEXF_LINEAR)))
+	{
+		MSG_BOX(TEXT("Failed to SetSamplerState : D3DSAMP_MAGFILTER"));
+		return E_FAIL;
+	}
+	if (FAILED(m_pGraphic_Device->SetSamplerState(0, D3DSAMP_MIPFILTER, D3DTEXF_LINEAR)))
+	{
+		MSG_BOX(TEXT("Failed to SetSamplerState : D3DSAMP_MIPFILTER"));
+		return E_FAIL;
+	}
+
+	if (FAILED(m_pGraphic_Device->SetRenderState(D3DRS_ALPHATESTENABLE, TRUE)))
+	{
+		MSG_BOX(TEXT("Failed to SetRenderState : D3DRS_ALPHATESTENABLE"));
+		return E_FAIL;
+	}
+	if (FAILED(m_pGraphic_Device->SetRenderState(D3DRS_ALPHAREF, 200))) // 테스트 할 알파값
+	{
+		MSG_BOX(TEXT("Failed to SetRenderState : D3DRS_ALPHAREF"));
+		return E_FAIL;
+	}
+	if (FAILED(m_pGraphic_Device->SetRenderState(D3DRS_ALPHAFUNC, D3DCMP_GREATER)))
+	{
+		MSG_BOX(TEXT("Failed to SetRenderState : D3DRS_ALPHAFUNC"));
+		return E_FAIL;
+	}
+	return S_OK;
+}
+
+HRESULT CMonster_Red_Fly::Reset_RenderState()
+{
+	if (m_eNowState == STATE_DEATH)
+	{
+		m_pGraphic_Device->SetRenderState(D3DRS_CULLMODE, D3DCULL_CCW);
+		if (FAILED(m_pGraphic_Device->SetRenderState(D3DRS_ALPHATESTENABLE, FALSE)))
+		{
+			MSG_BOX(TEXT("Failed to SetRenderState : D3DRS_ALPHATESTENABLE"));
+			return E_FAIL;
+		}
+
+		if (FAILED(m_pGraphic_Device->SetRenderState(D3DRS_ALPHABLENDENABLE, FALSE)))
+		{
+			MSG_BOX(TEXT("Failed to SetRenderState : D3DRS_ALPHABLENDENABLE"));
+			return E_FAIL;
+		}
+		return S_OK;
+	}
+
+
+	if (FAILED(m_pGraphic_Device->SetRenderState(D3DRS_ALPHATESTENABLE, FALSE)))
+	{
+		MSG_BOX(TEXT("Failed to SetRenderState : D3DRS_ALPHATESTENABLE"));
+		return E_FAIL;
+	}
+
+	if (FAILED(m_pGraphic_Device->SetSamplerState(0, D3DSAMP_MINFILTER, D3DTEXF_LINEAR)))
+	{
+		MSG_BOX(TEXT("Failed to SetSamplerState : D3DSAMP_MINFILTER"));
+		return E_FAIL;
+	}
+	if (FAILED(m_pGraphic_Device->SetSamplerState(0, D3DSAMP_MAGFILTER, D3DTEXF_LINEAR)))
+	{
+		MSG_BOX(TEXT("Failed to SetSamplerState : D3DSAMP_MAGFILTER"));
+		return E_FAIL;
+	}
+	if (FAILED(m_pGraphic_Device->SetSamplerState(0, D3DSAMP_MIPFILTER, D3DTEXF_LINEAR)))
+	{
+		MSG_BOX(TEXT("Failed to SetSamplerState : D3DSAMP_MIPFILTER"));
+		return E_FAIL;
+	}
+	return S_OK;
+}
+
+void CMonster_Red_Fly::SetUp_BillBoard()
+{
+	//CTransform* pCameraTransformCom = dynamic_cast<CTransform*>(m_pGameInstance->Get_Component(LEVEL_TUTORIAL, TEXT("Layer_Camera_Free"), g_strTransformTag));
+	//CTransform* pCameraTransformCom = dynamic_cast<CTransform*>(m_pGameInstance->Get_Component(g_eLevel, TEXT("Layer_Camera_Player"), g_strTransformTag));
+
+	if (nullptr == m_pCameraTransform)
+	{
+		m_pCameraTransform = dynamic_cast<CTransform*>(m_pGameInstance->Get_Component(LEVEL_STATIC, TEXT("Layer_Camera_Player"), g_strTransformTag));
+		if (nullptr != m_pCameraTransform)
+			Safe_AddRef(m_pCameraTransform);
+	}
+
+	if (nullptr == m_pCameraTransform)
+	{
+		MSG_BOX(TEXT("nullptr == m_pCameraTransformCom : CMonster_Red_Fly::SetUp_BillBoard()"));
+		return;
+	}
+
+	const _float4x4 pCameraWorldMatrix = *m_pCameraTransform->Get_WorldMatrix();
+
+
+	_float3 vScale = m_pTransform->Get_Scale();
+
+	m_pTransform->Set_State(CTransform::STATE_RIGHT, *D3DXVec3Normalize((_float3*)&pCameraWorldMatrix.m[CTransform::STATE_RIGHT][0], (_float3*)&pCameraWorldMatrix.m[CTransform::STATE_RIGHT][0]) * vScale.x);
+	//m_pTransform->Set_State(CTransform::STATE_UP, *D3DXVec3Normalize((_float3*)&pCameraWorldMatrix.m[CTransform::STATE_UP][0], (_float3*)&pCameraWorldMatrix.m[CTransform::STATE_UP][0]) * vScale.y);
+	m_pTransform->Set_State(CTransform::STATE_LOOK, *D3DXVec3Normalize((_float3*)&pCameraWorldMatrix.m[CTransform::STATE_LOOK][0], (_float3*)&pCameraWorldMatrix.m[CTransform::STATE_LOOK][0]) * vScale.z);
+
+	/*m_pTransform->Set_State(CTransform::STATE_RIGHT, *(_float3*)&pCameraWorldMatrix.m[CTransform::STATE_RIGHT][0]);
+	m_pTransform->Set_State(CTransform::STATE_LOOK, *(_float3*)&pCameraWorldMatrix.m[CTransform::STATE_LOOK][0]);*/
+}
+
+void CMonster_Red_Fly::Look_Camera_Fixed_Y_Axis()
+{
+	//CTransform* pCameraTransformCom = dynamic_cast<CTransform*>(m_pGameInstance->Get_Component(LEVEL_TUTORIAL, TEXT("Layer_Camera_Free"), g_strTransformTag));
+	//CTransform* pCameraTransformCom = dynamic_cast<CTransform*>(m_pGameInstance->Get_Component(g_eLevel, TEXT("Layer_Camera_Player"), g_strTransformTag));
+	if (nullptr == m_pCameraTransform)
+	{
+		m_pCameraTransform = dynamic_cast<CTransform*>(m_pGameInstance->Get_Component(LEVEL_STATIC, TEXT("Layer_Camera_Player"), g_strTransformTag));
+		if (nullptr != m_pCameraTransform)
+			Safe_AddRef(m_pCameraTransform);
+	}
+
+	if (nullptr == m_pCameraTransform)
+	{
+		MSG_BOX(TEXT("nullptr == m_pCameraTransformCom : CMonster_Red_Fly::SetUp_BillBoard()"));
+		return;
+	}
+
+	const _float4x4 pCameraWorldMatrix = *m_pCameraTransform->Get_WorldMatrix();
+	_float3 vCameraPos = m_pCameraTransform->Get_State(CTransform::STATE_POSITION);
+
+	_float3 vScale = m_pTransform->Get_Scale();
+
+	//_float3 vLook = vCameraPos - m_pTransform->Get_State(CTransform::STATE_POSITION);
+	_float3 vLook = m_pTransform->Get_State(CTransform::STATE_POSITION) - vCameraPos;
+	//vLook = *D3DXVec3Normalize(&vLook, &vLook) * vScale.z;
+	_float3 vUp = { 0.f,1.f,0.f };
+	vUp *= vScale.y;
+	_float3 vRight = *D3DXVec3Cross(&vRight, &vUp, &vLook);
+	vRight = *D3DXVec3Normalize(&vRight, &vRight) * vScale.x;
+	vLook = *D3DXVec3Cross(&vLook, &vRight, &vUp);
+	vLook = *D3DXVec3Normalize(&vLook, &vLook) * vScale.z;
+
+	m_pTransform->Set_State(CTransform::STATE_RIGHT, vRight);
+	m_pTransform->Set_State(CTransform::STATE_UP, vUp);
+	m_pTransform->Set_State(CTransform::STATE_LOOK, vLook);
+
+
+}
+
+void CMonster_Red_Fly::Chase_Player(_float fTimeDelta, _float Min_Distance)
+{
+	const CTransform* pTransform = dynamic_cast<const CTransform*>(m_pGameInstance->Get_Component(LEVEL_STATIC, TEXT("Layer_Player"), g_strTransformTag));
+
+	_float3 vPosition = pTransform->Get_State(CTransform::STATE_POSITION);
+
+	m_pTransform->LookAt_LandObject(vPosition);
+
+	m_pTransform->Move_To_Target(vPosition, fTimeDelta, Min_Distance);
+}
+
+_bool CMonster_Red_Fly::MousePicking()
+{
+	_float3 vRayDir = {};
+	_float3 vRayPos = {};
+
+	// 플레이어를 인식하는 범위에 들어온다면
+	if (!m_bCheckPlayer)
+	{
+		return false;
+	}
+
+	// 카메라가 숄더뷰라면?
+	if (dynamic_cast<CCamera_Player_DW*>(m_pGameInstance->Get_Object(LEVEL_STATIC, TEXT("Layer_Camera_Player")))->Get_Camera_Mode() != CCamera_Player_DW::CAMERA_PLAYER_RIGHT_VIEW)
+		return false;
+
+	// 만약 다 성립하고 마우스가 있다면?
+	m_pGameInstance->Get_World_Mouse_Ray(&vRayDir, &vRayPos);
+	if (m_pGameInstance->Collision_Rect_Ray_Same_Space(dynamic_cast<CCollider_Rect*>(m_pCollider_Com[COLLIDER_RECT]), vRayDir, vRayPos))
+	{
+		return true;
+	}
+
+	//if ((GetAsyncKeyState('F') & 0x8000))
+	//{
+	//	return true;
+	//}
+	return false;
+}
+
+void CMonster_Red_Fly::Shot_Bullet()
+{
+	CRed_Monster_Bullet::MONSTER_BULLET_BASE_DESC MonsterBulletDesc = {};
+
+	MonsterBulletDesc.pTerrainTranformCom = dynamic_cast<CTransform*>(m_pGameInstance->Get_Component(g_eLevel, TEXT("Layer_Terrain"), g_strTransformTag.c_str()));
+	MonsterBulletDesc.pTerrainVIBufferCom = dynamic_cast<CVIBuffer_Terrain*>(m_pGameInstance->Get_Component(g_eLevel, TEXT("Layer_Terrain"), TEXT("Com_VIBuffer")));
+
+	MonsterBulletDesc.m_fSpeed = 2.0f;
+	MonsterBulletDesc.m_fLifeTime = 5.f;
+	MonsterBulletDesc.m_vLook = m_vMonsterLook;
+	MonsterBulletDesc.m_fScale = 0.5f;
+	MonsterBulletDesc.m_vPos = m_pTransform->Get_State(CTransform::STATE_POSITION);
+
+	m_pGameInstance->Add_Clone(g_eLevel, TEXT("Layer_Monster_Bullet"), TEXT("Prototype_GameObject_Red_Monster_Bullet"), &MonsterBulletDesc);
+	m_pGameInstance->PlaySoundW(TEXT("Awler_Shoot.wav"), CSound_Manager::MONSTER2, 0.2f);
+
+	++m_iAttakNum;
+}
+
+void CMonster_Red_Fly::Collision_Bullet(_float fTimeDelta)
+{
+	//플레이어가 현재 들고 있는 총 3자루의 각 총알 벡터를 받아온다.
+	//포문을 순회하면서 충돌을 판단한다. or 총안에 구현 해놓을 충돌판단 함수를 부른다.
+	//재사용성 생각하면 총에 구현? 근데 벽.상자.몬스터 모두 적용되는 함수를 총에 구현 할 수 있을까? 
+	//벽과 몬스터는 콜라이더 렉트가 있어서 오키다. 근데 상자는 없자나ㅓ.
+	//aabb큐브와 총알과의 충돌처리를 콜리젼 매니저에 구현하고 상자에서 사용하는 식으로 가자.
+	//현재 푸파 총알만 바인딩
+	CPlayer* pPlayer = dynamic_cast<CPlayer*>(m_pGameInstance->Get_Object(LEVEL_STATIC, TEXT("Layer_Player")));
+	CWeapon* pWeapons[3] = { pPlayer->Get_Weapon(0),pPlayer->Get_Weapon(1) ,pPlayer->Get_Weapon(2) };
+
+	for (size_t i = 0; i < 3; i++)
+	{
+		_uint iRand = rand() % 3;
+
+		if (nullptr == pWeapons[i])
+			continue;
+		_float fTotalDamage = pWeapons[i]->Collision_Bullet_Rect(dynamic_cast<CCollider_Rect*>(m_pCollider_Com[COLLIDER_RECT]), fTimeDelta);
+		if (0.f < fTotalDamage)
+		{
+			m_pUI_Damage->Hit_Damage(fTotalDamage);
+			m_pGameInstance->StopSound(CSound_Manager::MONSTER3);
+			m_pGameInstance->PlaySoundW(TEXT("Awler_Hit_01.wav"), CSound_Manager::MONSTER3, 0.2f);
+		}
+			
+		pWeapons[i]->Plus_GunGauge(fTotalDamage);
+		/*TCHAR	szBuf[256] = L"";
+		swprintf_s(szBuf, L"Awler_Hit_0%d.wav", iRand);
+		m_pGameInstance->PlaySoundW(szBuf, CSound_Manager::MONSTER2, 0.2f);*/
+		if (OBJECT_DEAD == m_pState_Com->Set_Hp(-fTotalDamage))
+		{
+			m_fTexture = 0.f;
+			m_fTime = 0.f;
+			m_eNowState = STATE_DEATH;
+			Set_Dead();
+			break;
+		}
+	}
+}
+
+void CMonster_Red_Fly::Collision_Wall()
+{
+	_float3 vRayPos = m_pTransform->Get_State(CTransform::STATE_POSITION);
+	_float3 vRayDir[4] = {
+		 m_pTransform->Get_State(CTransform::STATE_LOOK),
+		 m_pTransform->Get_State(CTransform::STATE_RIGHT),
+		 -m_pTransform->Get_State(CTransform::STATE_LOOK),
+		 -m_pTransform->Get_State(CTransform::STATE_RIGHT)
+	};
+	_float fLength[4] = {
+		1.f,
+		1.f,
+		1.f,
+		1.f
+		/*D3DXVec3Length(&vRayDir[0]),
+		D3DXVec3Length(&vRayDir[1]),
+		D3DXVec3Length(&vRayDir[2]),
+		D3DXVec3Length(&vRayDir[3])*/
+	};
+	for (size_t i = 0; i < 4; i++)
+	{
+		D3DXVec3Normalize(&vRayDir[i], &vRayDir[i]);
+	}
+
+	list<CGameObject*>* pWallList = m_pGameInstance->Get_List(g_eLevel, TEXT("Layer_Wall"));
+	if (nullptr == pWallList)
+		return;
+
+	_float fMinDist(1000.f); //큰 값으로 초기화
+	for (auto& iter : *pWallList)//Wall List 전부를 순회하면서 충돌을 판단한다.
+	{
+		CCollider_Rect* pCollider_Rect = dynamic_cast<CCollider_Rect*>(iter->Get_Component(TEXT("Com_Collider_Rect")));
+		if (nullptr == pCollider_Rect)
+			continue;
+		_float fDist(1000.f);
+		for (size_t i = 0; 4 > i; ++i)
+		{
+			if (m_pGameInstance->Collision_Rect_Ray_Same_Space(pCollider_Rect, vRayDir[i], vRayPos, fLength[i], &fDist)) //충돌이 일어났을 때
+			{
+				if (fMinDist > fDist) //
+				{
+					fMinDist = fDist;
+					_float3 vPos = vRayPos + vRayDir[i] * (fMinDist - 1.f);
+					m_pTransform->Set_State(CTransform::STATE_POSITION, vPos);
+					_float4x4 WorldMatrix = *m_pTransform->Get_WorldMatrix();
+					m_pCollider_Com[COLLIDER_RECT]->Update_Collider_Info(WorldMatrix);
+					m_pCollider_Com[COLLIDER_CUBE_AABB]->Update_Collider_Info(WorldMatrix);
+				}
+			}
+		}
+	}
+}
+
+CMonster_Red_Fly* CMonster_Red_Fly::Create(LPDIRECT3DDEVICE9 pGraphic_Device)
+{
+	CMonster_Red_Fly* pInstance = new CMonster_Red_Fly(pGraphic_Device);
+	if (FAILED(pInstance->Initialize_Prototype()))
+	{
+		MSG_BOX(TEXT("Faild to Created : CMonster_Red_Fly"));
+
+		Safe_Release(pInstance);
+	}
+
+	return pInstance;
+}
+
+CGameObject* CMonster_Red_Fly::Clone(void* pArg)
+{
+	CMonster_Red_Fly* pInstance = new CMonster_Red_Fly(*this);
+	if (FAILED(pInstance->Initialize(pArg)))
+	{
+		MSG_BOX(TEXT("Faild to Cloned : CMonster_Red_Fly"));
+
+		Safe_Release(pInstance);
+	}
+
+	return pInstance;
+}
+
+void CMonster_Red_Fly::Free()
+{
+	Safe_Release(m_pVIBuffer_Com);
+	Safe_Release(m_pTextureIdle);
+	Safe_Release(m_pTextureMove);
+	Safe_Release(m_pTextureAttak);
+	Safe_Release(m_pTextureDeath);
+	Safe_Release(m_pCollider_Com[COLLIDER_RECT]);
+	Safe_Release(m_pCollider_Com[COLLIDER_CUBE_AABB]);
+	Safe_Release(m_pState_Com);
+	Safe_Release(m_pTextureCollider);
+	Safe_Release(m_pCameraTransform);
+	__super::Free();
+}

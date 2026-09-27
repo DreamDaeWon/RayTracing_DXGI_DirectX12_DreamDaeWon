@@ -1,0 +1,76 @@
+#pragma once
+
+#include"UI_Base.h"
+
+
+
+BEGIN(Engine)
+class CTexture;
+class CVIBuffer_Rect;
+END
+
+
+BEGIN(Client)
+
+class CUI_Player_Weapon final : public CUI_Base
+{
+private:
+	enum UI {
+		UI_HEARTBACK, UI_HEART, UI_GATTOBACK, UI_GATTOFACE,
+
+		UI_GUN_MINISLOT_BACK, UI_GUN_MINISLOT_PREPAR,
+
+		UI_END
+	};
+	enum WEAPON_SLOT { FIRST_WEAPON, SECOND_WEAPON, THIRD_WEAPON, WEAPON_SLOT_END };
+	enum BULLETID { BULLET_RIFLE, BULLET_SHOTGUN, BULLET_SASIN, BULLET_SHARKBLOOD };
+
+public:
+	typedef struct tagUI_Player_Weapon_Desc : public CUI_Base::UI_BASE_DESC
+	{
+	}UI_PLAYER_WEAPON_DESC;
+
+private:
+	CUI_Player_Weapon(LPDIRECT3DDEVICE9 pGraphic_Device);
+	CUI_Player_Weapon(const CUI_Base& rhs);
+	virtual ~CUI_Player_Weapon() = default;
+
+public:
+	virtual HRESULT Initialize_Prototype();
+	virtual HRESULT Initialize(void* pArg);
+	virtual _uint Tick(_float fTimeDelta);
+	virtual void Late_Tick(_float fTimeDelta);
+	virtual HRESULT Render();
+private:
+	void Get_State();
+//TODO: 예은 추가
+private:
+	_float4x4 m_WorldMatrix = {};
+
+	CTexture* m_pTextureWeaponBackCom = { nullptr };  // 스킬 - 프레임이 곧 그 스킬의 이미지
+	CTexture* m_pTextureWeaponCom = { nullptr };  // 스킬 - 프레임이 곧 그 스킬의 이미지
+	CTexture* m_pTextureWeaponExCom = { nullptr };  // 스킬 - 프레임이 곧 그 스킬의 이미지
+	CTexture* m_pTextureMainCom = { nullptr };  // background- 
+	CTexture* m_pTextureMiniCom = { nullptr };  // background_
+	CTexture* m_pTextureDotCom = { nullptr };  // background_Dot
+	CTexture* m_pTextureMiniCheckCom = { nullptr };  // 미니 슬롯 체크 뒷배경
+	CTexture* m_pTextureMiniSlotCheckCom = { nullptr };  // 미니 슬롯 테두리
+	CTexture* m_pTextureBulletIcon = { nullptr };  // 미니 슬롯 테두리
+
+	class CWeapon* m_pWeaponSlot[WEAPON_SLOT_END] = { nullptr };
+	_uint					m_iSelectWeapon = { 0 };
+
+private:
+	HRESULT							Render_Again(_float fSizeX, _float fSizeY, _float fX, _float fY, _uint iFrame, _uint iRenderState);
+	void							Reset_First_State();
+private:
+	virtual HRESULT Add_Components() override;
+	virtual HRESULT Set_RenderState(_ulong lAphaRef = 0) override;
+	virtual HRESULT Reset_RenderState() override;
+public:
+	static	 CUI_Player_Weapon* Create(LPDIRECT3DDEVICE9 pGraphic_Device);
+	virtual CGameObject* Clone(void* pArg) override;
+	virtual void Free() override;
+};
+
+END

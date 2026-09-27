@@ -1,0 +1,408 @@
+#include "pch.h"
+#include "QAim2.h"
+#include "Camera_Player_DW2.h"
+#include "GameInstance.h"
+
+
+CQAim2::CQAim2(LPDIRECT3DDEVICE9 pGraphic_Device)
+    :CUI_Base(pGraphic_Device)
+{
+}
+
+CQAim2::CQAim2(const CQAim2& rhs)
+    :CUI_Base(rhs)
+{
+}
+
+HRESULT CQAim2::Initialize_Prototype()
+{
+    return S_OK;
+}
+
+HRESULT CQAim2::Initialize(void* pArg)
+{
+    if (nullptr != pArg)
+    {
+        QAIM_DESC2* Desc = (QAIM_DESC2*)pArg;
+        m_fMouseSensor = Desc->fMouseSensor;
+
+    }
+
+
+    if (FAILED(__super::Initialize(pArg)))
+        return E_FAIL;
+
+    if (FAILED(Add_Components()))
+        return E_FAIL;
+
+    D3DXMatrixIdentity(&m_ViewMatrix);
+
+    D3DXMatrixOrthoLH(&m_ProjMatrix, g_iWinSizeX, g_iWinSizeY, 0.0f, 1.f);
+
+
+    m_fSizeX = 32.f;
+    m_fSizeY = 32.f;
+
+   
+    m_pTransform->Set_Scale(_float3(m_fSizeX, m_fSizeY, 1.f));
+    m_ptMouse = { (_long)(g_iWinSizeX * 0.5), (_long)(g_iWinSizeY * 0.5) };
+    ClientToScreen(g_hWnd, &m_ptMouse);
+    SetCursorPos(m_ptMouse.x, m_ptMouse.y);
+    ScreenToClient(g_hWnd,&m_ptMouse);
+    m_pTransform->Set_State(CTransform::STATE_POSITION, _float3((_float)m_ptMouse.x - g_iWinSizeX * 0.5f, -(_float)m_ptMouse.y + g_iWinSizeY * 0.5f, 0.f));
+    // 최대 X와 최소 X값을 설정해줌
+    ClientToScreen(g_hWnd, &m_ptMouse);
+    m_fMaxX = 100.f;
+    m_fMinX = -m_fMaxX;
+
+    m_fMaxY = 300.f;
+    m_fMinY = -m_fMaxY;
+
+    // 화면 회전 속도 지정
+    m_fTrunSpeed = 0.5f;
+
+    // 최대 Y시야각도 지정
+    m_fAngleY = 80.f;
+
+    return S_OK;
+
+}
+
+_uint CQAim2::Tick(_float fTimeDelta)
+{
+	m_fTime = fTimeDelta;
+    // 카메라 오브젝트와 카메라의 트랜스폼을 가져옴
+    //_uint iLevelIndex = m_pGameInstance->Get_Level();
+    if (nullptr == m_pCameraObject)
+    {
+        m_pCameraObject = dynamic_cast<CCamera_Player_DW2*>(m_pGameInstance->Get_Object(LEVEL_1945, TEXT("Layer_Camera")));
+        if (nullptr != m_pCameraObject)
+            Safe_AddRef(m_pCameraObject);
+    }
+    if (nullptr == m_pCameraTransform)
+    {
+        m_pCameraTransform = dynamic_cast<CTransform*>(m_pCameraObject->Get_Component(g_strTransformTag));
+        if (nullptr != m_pCameraTransform)
+            Safe_AddRef(m_pCameraTransform);
+    }
+   
+    if (m_pCameraTransform == nullptr)
+        return OBJECT_NOTHING;
+
+    // 카메라 모드에 따른 마우스 범위
+    if (m_pCameraObject->Get_Camera_Mode() == CCamera_Player_DW2::CAMERA_1VIEW
+        || m_pCameraObject->Get_Camera_Mode() == CCamera_Player_DW2::CAMERA_PLAYER_RIGHT_VIEW)
+    {
+        // DW질문 : 1인칭 변환했을 때 1틱 느린데 왜 그런지 찾을 것
+        
+        // 최대 X와 최소 X값을 설정해줌
+        m_fMaxX = 0.f;
+        m_fMinX = 0.f;
+
+        m_fMaxY = 0.f;
+        m_fMinY = 0.f;
+
+        m_fNowCurX = 0.f;
+        m_fNowCurY = 0.f;
+        // 질문에 대한 답
+        // 답 : 위치를 바로 바꿔준다.
+        m_pTransform->Set_State(CTransform::STATE_POSITION,
+            _float3(m_fNowCurX,
+                m_fNowCurY,
+                m_pTransform->Get_State(CTransform::STATE_POSITION).z));
+    }
+    else if (m_pCameraObject->Get_Camera_Mode() == CCamera_Player_DW2::CAMERA_FREE)
+    {
+        m_fMaxX = (g_iWinSizeX *0.5f) - 50.f;
+        m_fMinX = -m_fMaxX;
+
+        m_fMaxY = (g_iWinSizeY * 0.5f) - 50.f;
+        m_fMinY = -m_fMaxY;
+
+       // m_fNowCurX = 0.f;
+        //m_fNowCurY = 0.f;
+    }
+    else
+    {
+        // 최대 X와 최소 X값을 설정해줌
+        m_fMaxX = 200.f;
+        m_fMinX = -m_fMaxX;
+
+        m_fMaxY = 300.f;
+        m_fMinY = -m_fMaxY;
+
+    }
+
+    
+    GetCursorPos(&m_ptCurMouse);
+
+    _long MouseMoveX = m_ptCurMouse.x - m_ptMouse.x;
+
+
+    m_fNowCurX += MouseMoveX; // 계속 더해줘서 마우스가 얼마나 움직였고 현재 어느 X값에 있는지 파악하기 위함
+   
+
+    if (0 != MouseMoveX)
+    {
+        POINT ptMinMouse = { (_long)(g_iWinSizeX * 0.5 + m_fMinX),0 };
+        POINT ptMaxMouse = { (_long)(g_iWinSizeX * 0.5 + m_fMaxX),0 };
+        ClientToScreen(g_hWnd, &ptMinMouse);
+        ClientToScreen(g_hWnd, &ptMaxMouse);
+        if (m_ptCurMouse.x < ptMinMouse.x)
+        {
+			m_pCameraTransform->Turn(_float3(0.f, 1.f, 0.f), fTimeDelta * (m_fNowCurX - m_fMinX) * m_fTrunSpeed);
+          
+            // m_NowCurX 값 바꾸기
+
+            m_fNowCurX = m_fMinX;
+            m_ptCurMouse.x = ptMinMouse.x;
+
+        }
+        else if (m_ptCurMouse.x > ptMaxMouse.x)
+        {
+            // 플레이어 더 넘어간 값 만큼 돌리고
+         
+            m_pCameraTransform->Turn(_float3(0.f, 1.f, 0.f), fTimeDelta * (m_fNowCurX - m_fMaxX) * m_fTrunSpeed);
+            
+            // m_NowCurX 값 바꾸기
+            m_fNowCurX = m_fMaxX;
+            m_ptCurMouse.x = ptMaxMouse.x;
+
+        }
+        // 조준점의 좌표를 지정
+
+
+    }
+
+
+
+    // y값
+    _long MouseMoveY = m_ptMouse.y - m_ptCurMouse.y;
+
+    m_fNowCurY += MouseMoveY; // 계속 더해줘서 마우스가 얼마나 움직였고 현재 어느 Y값에 있는지 파악하기 위함
+
+
+
+    if (0 != MouseMoveY)
+    {
+        POINT ptMinMouse = { 0,(_long)(g_iWinSizeY * 0.5 + m_fMinY) };
+        POINT ptMaxMouse = { 0,(_long)(g_iWinSizeY * 0.5 + m_fMaxY) };
+        ClientToScreen(g_hWnd, &ptMinMouse);
+        ClientToScreen(g_hWnd, &ptMaxMouse);
+
+        if (m_ptCurMouse.y < ptMinMouse.y)
+        {
+            if (m_pCameraObject->Get_Camera_Mode() == CCamera_Player_DW2::CAMERA_PLAYER_RIGHT_VIEW
+                || m_pCameraObject->Get_Camera_Mode() == CCamera_Player_DW2::CAMERA_FREE)
+            {
+                // 플레이어 더 넘어간 값 만큼 돌리고
+               
+					// 이전 축들을 가져와
+				_float3 vBeforeUp = m_pCameraTransform->Get_State(CTransform::STATE_UP);
+				_float3 vBeforeRight = m_pCameraTransform->Get_State(CTransform::STATE_RIGHT);
+				_float3 vBeforeLook = m_pCameraTransform->Get_State(CTransform::STATE_LOOK);
+
+				// 돌려
+				m_pCameraTransform->Turn(m_pCameraTransform->Get_State(CTransform::STATE_RIGHT), fTimeDelta* (m_fMinY - m_fNowCurY)* m_fTrunSpeed);
+
+
+				// 돌린게 넘어가면? 다시 이전으로 돌려
+				_float3 vLook = { m_pCameraTransform->Get_State(CTransform::STATE_LOOK) };
+				_float3 vLookXZPlane = { vLook };
+				vLookXZPlane.y = 0.f;
+
+				m_fAngle = D3DXVec3Dot(D3DXVec3Normalize(&vLook, &vLook), D3DXVec3Normalize(&vLookXZPlane, &vLookXZPlane));
+                if (m_fAngle >= 1.f)
+                    m_fAngle = 1.f;
+                else if (m_fAngle <= -1.f)
+                    m_fAngle = -1.f;
+				m_fAngle = acosf(m_fAngle);
+
+				m_fAngle = D3DXToDegree(m_fAngle);
+
+				if (m_fAngle > m_fAngleY)
+				{
+					m_pCameraTransform->Set_State(CTransform::STATE_UP, vBeforeUp);
+					m_pCameraTransform->Set_State(CTransform::STATE_RIGHT, vBeforeRight);
+					m_pCameraTransform->Set_State(CTransform::STATE_LOOK, vBeforeLook);
+				}
+
+            }
+            // m_NowCurY 값 바꾸기
+            m_fNowCurY = m_fMinY;
+            m_ptCurMouse.y = ptMinMouse.y;
+
+        }
+        else if (m_ptCurMouse.y > ptMaxMouse.y)
+		{
+			if (m_pCameraObject->Get_Camera_Mode() == CCamera_Player_DW2::CAMERA_PLAYER_RIGHT_VIEW
+				|| m_pCameraObject->Get_Camera_Mode() == CCamera_Player_DW2::CAMERA_FREE)
+			{
+				// 플레이어 더 넘어간 값 만큼 돌리고
+					// 이전 축들을 가져와
+				_float3 vBeforeUp = m_pCameraTransform->Get_State(CTransform::STATE_UP);
+				_float3 vBeforeRight = m_pCameraTransform->Get_State(CTransform::STATE_RIGHT);
+				_float3 vBeforeLook = m_pCameraTransform->Get_State(CTransform::STATE_LOOK);
+				// 돌려
+				m_pCameraTransform->Turn(m_pCameraTransform->Get_State(CTransform::STATE_RIGHT), fTimeDelta * (m_fMaxY - m_fNowCurY) * m_fTrunSpeed);
+
+				// 돌린게 넘어가면? 다시 이전으로 돌려
+				_float3 vLook = { m_pCameraTransform->Get_State(CTransform::STATE_LOOK) };
+				_float3 vLookXZPlane = { vLook };
+				vLookXZPlane.y = 0.f;
+
+				m_fAngle = D3DXVec3Dot(D3DXVec3Normalize(&vLook, &vLook), D3DXVec3Normalize(&vLookXZPlane, &vLookXZPlane));
+                if (m_fAngle > 1.f)
+                    m_fAngle = 1.f;
+                else if (m_fAngle < -1.f)
+                    m_fAngle = -1.f;
+
+				m_fAngle = acosf(m_fAngle);
+
+				m_fAngle = D3DXToDegree(m_fAngle);
+
+				if (m_fAngle > m_fAngleY)
+				{
+					m_pCameraTransform->Set_State(CTransform::STATE_UP, vBeforeUp);
+					m_pCameraTransform->Set_State(CTransform::STATE_RIGHT, vBeforeRight);
+					m_pCameraTransform->Set_State(CTransform::STATE_LOOK, vBeforeLook);
+				}
+
+            }
+
+            // m_NowCurY 값 바꾸기
+            m_fNowCurY = m_fMaxY;
+            m_ptCurMouse.y = ptMaxMouse.y;
+
+        }
+
+    }
+
+
+    m_ptMouse = m_ptCurMouse;
+    SetCursorPos(m_ptMouse.x, m_ptMouse.y);
+    ScreenToClient(g_hWnd, &m_ptMouse);
+    m_pTransform->Set_State(CTransform::STATE_POSITION, _float3((_float)m_ptMouse.x - g_iWinSizeX * 0.5f, -(_float)m_ptMouse.y + g_iWinSizeY * 0.5f, 0.f));
+    ClientToScreen(g_hWnd, &m_ptMouse);
+
+    return OBJECT_NOTHING;
+}
+
+void CQAim2::Late_Tick(_float fTimeDelta)
+{
+    m_pGameInstance->Add_RenderObject(CRenderer::RENDER_UI, this);
+    m_fFrame += 8.0f * fTimeDelta * 0.5f;
+
+    if (m_fFrame >= 8.0f)
+        m_fFrame = 0.f;
+}
+
+HRESULT CQAim2::Render()
+{
+	m_pTransform->Turn(_float3(0.f, 0.f, 1.f), m_fTime*1.2f);
+    if (FAILED(m_pTransform->Bind_WorldMatrix()))
+        return E_FAIL;
+    // 여기서 카메라에서 등록한 행렬들이 사라짐
+    m_pGraphic_Device->SetTransform(D3DTS_VIEW, &m_ViewMatrix);
+    m_pGraphic_Device->SetTransform(D3DTS_PROJECTION, &m_ProjMatrix);
+
+    if (FAILED(m_pTextureCom->Bind_Texture(0, (_uint)m_fFrame)))
+        return E_FAIL;
+
+    if (FAILED(Set_RenderState(20)))
+        return E_FAIL;
+    //m_pGameInstance->Render_Font(TEXT("Font_Default"), m_strOutAngle, &_float2(0.f, 0.f), D3DXCOLOR(1.f, 1.f, 1.f, 1.f));
+ //   m_pGameInstance->Render_Font(TEXT("Font_Default"), TEXT("우히히"), &_float2(0.f, 0.f), D3DXCOLOR(1.f, 1.f, 1.f, 1.f));
+    if (FAILED(m_pVIBufferCom->Render()))
+        return E_FAIL;
+    if (FAILED(Reset_RenderState()))
+        return E_FAIL;
+    return S_OK;
+}
+
+HRESULT CQAim2::Add_Components()
+{
+     /* For.Com_VIBuffer */
+    if (FAILED(__super::Add_Component(LEVEL_STATIC, TEXT("Prototype_Component_VIBuffer_Rect"),
+        TEXT("Com_VIBuffer"), (CComponent**)&m_pVIBufferCom)))
+        return E_FAIL;
+
+
+    /* For.Com_Texture */
+    if (FAILED(__super::Add_Component(LEVEL_STATIC, TEXT("Prototype_Component_Texture_QAim"),
+        TEXT("Com_Texture"), (CComponent**)&m_pTextureCom)))
+        return E_FAIL;
+
+    return S_OK;
+}
+
+HRESULT CQAim2::Set_RenderState(_ulong lAphaRef)
+{
+
+    m_pGraphic_Device->SetSamplerState(0, D3DSAMP_MINFILTER, D3DTEXF_POINT);
+    m_pGraphic_Device->SetSamplerState(0, D3DSAMP_MAGFILTER, D3DTEXF_POINT);
+    m_pGraphic_Device->SetSamplerState(0, D3DSAMP_MIPFILTER, D3DTEXF_POINT);
+    /*m_pGraphic_Device->SetRenderState(D3DRS_ALPHATESTENABLE, TRUE);
+    m_pGraphic_Device->SetRenderState(D3DRS_ALPHAREF, lAphaRef);
+    m_pGraphic_Device->SetRenderState(D3DRS_ALPHAFUNC, D3DCMP_GREATER);*/
+
+
+    m_pGraphic_Device->SetRenderState(D3DRS_ALPHABLENDENABLE, TRUE);
+    m_pGraphic_Device->SetRenderState(D3DRS_SRCBLEND, D3DBLEND_SRCALPHA);
+    m_pGraphic_Device->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA);
+    m_pGraphic_Device->SetRenderState(D3DRS_BLENDOP, D3DBLENDOP_ADD);
+
+    m_pGraphic_Device->SetRenderState(D3DRS_ZENABLE, FALSE);
+    m_pGraphic_Device->SetRenderState(D3DRS_ZWRITEENABLE, TRUE);
+    return S_OK;
+}
+
+HRESULT CQAim2::Reset_RenderState()
+{
+    m_pGraphic_Device->SetRenderState(D3DRS_ALPHABLENDENABLE, FALSE);
+
+    m_pGraphic_Device->SetSamplerState(0, D3DSAMP_MINFILTER, D3DTEXF_LINEAR);
+    m_pGraphic_Device->SetSamplerState(0, D3DSAMP_MAGFILTER, D3DTEXF_LINEAR);
+    m_pGraphic_Device->SetSamplerState(0, D3DSAMP_MIPFILTER, D3DTEXF_LINEAR);
+    /*m_pGraphic_Device->SetRenderState(D3DRS_ALPHATESTENABLE, FALSE);*/
+
+    m_pGraphic_Device->SetRenderState(D3DRS_ZENABLE, TRUE);
+    m_pGraphic_Device->SetRenderState(D3DRS_ZWRITEENABLE, TRUE);
+
+    return S_OK;
+}
+
+CQAim2* CQAim2::Create(LPDIRECT3DDEVICE9 pGraphic_Device)
+{
+    CQAim2* pInstance = new CQAim2(pGraphic_Device);
+
+    if (FAILED(pInstance->Initialize_Prototype()))
+    {
+        MSG_BOX(TEXT("Failed To Created : CQAim2"));
+
+        Safe_Release(pInstance);
+    }
+
+    return pInstance;
+}
+
+CGameObject* CQAim2::Clone(void* pArg)
+{
+    CQAim2* pInstance = new CQAim2(*this);
+
+    if (FAILED(pInstance->Initialize(pArg)))
+    {
+        MSG_BOX(TEXT("Failed To Cloned : CQAim2"));
+
+        Safe_Release(pInstance);
+    }
+
+    return pInstance;
+}
+
+void CQAim2::Free()
+{
+    Safe_Release(m_pCameraObject);
+    Safe_Release(m_pCameraTransform);
+    __super::Free();
+}

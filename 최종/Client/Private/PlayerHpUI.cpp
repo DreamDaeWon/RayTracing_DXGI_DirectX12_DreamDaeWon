@@ -1,0 +1,253 @@
+#include "pch.h"
+#include "PlayerHpUI.h"
+#include "GameInstance.h"
+
+#include "VIBuffer_Terrain.h"
+#include "Player.h"
+
+CPlayerHpUI::CPlayerHpUI(LPDIRECT3DDEVICE9 pGraphic_Device) :
+	CUI_Base(pGraphic_Device)
+{
+}
+
+CPlayerHpUI::CPlayerHpUI(const CPlayerHpUI& rhs) :
+	CUI_Base(rhs)
+{
+}
+
+HRESULT CPlayerHpUI::Initialize_Prototype()
+{
+	if (FAILED(__super::Initialize_Prototype()))
+	{
+		MSG_BOX(TEXT("Failed to Initialize_Prototype : __super,CPlayerHpUI"));
+		return E_FAIL;
+	}
+
+	return S_OK;
+}
+
+HRESULT CPlayerHpUI::Initialize(void* pArg)
+{
+
+	if (FAILED(__super::Initialize(pArg)))
+	{
+		MSG_BOX(TEXT("Failed to Initialize : __super,CPlayerHpUI"));
+		return E_FAIL;
+	}
+
+	if (FAILED(Add_Components()))
+	{
+		MSG_BOX(TEXT("Failed to Add_Components : __super,CPlayerHpUI"));
+		return E_FAIL;
+	}
+
+	m_ViewMatrix = *D3DXMatrixIdentity(&m_ViewMatrix);
+
+	/* 직교투영행렬을 만들어주는 함수. */
+	/* 직교투영을 수행하여 투영스페이스로 옮겨주기위한 영역(뷰볼륨whnf)을 설정해달라. */
+	D3DXMatrixOrthoLH(&m_ProjMatrix, g_iWinSizeX, g_iWinSizeY, 0.f, 0.1f);
+
+	m_fSizeX = 200.f;
+	m_fSizeY = 20.f;
+	m_fX = 200.f;
+	m_fY = 100.f;
+
+	m_pTransform->Set_Scale(_float3(m_fSizeX, m_fSizeY, 1.f));
+	m_pTransform->Set_State(CTransform::STATE_POSITION, _float3(m_fX - g_iWinSizeX * 0.5f, -m_fY + g_iWinSizeY * 0.5f, 0.f));
+	return S_OK;
+}
+
+_uint CPlayerHpUI::Tick(_float fTimeDelta)
+{
+	__super::Tick(fTimeDelta);
+	return OBJECT_NOTHING;
+}
+
+void CPlayerHpUI::Late_Tick(_float fTimeDelta)
+{
+	__super::Late_Tick(fTimeDelta);
+
+	Chase_Player();
+
+	m_pGameInstance->Add_RenderObject(CRenderer::RENDER_UI, this);
+}
+
+HRESULT CPlayerHpUI::Render()
+{
+	//if (FAILED(__super::Render()))
+	//{
+	//	MSG_BOX(TEXT("Failed to Render : __super,CPlayerHpUI"));
+	//	return E_FAIL;
+	//}
+
+	if (!g_UI)
+		return S_OK;
+
+	if (FAILED(m_pTransform->Bind_WorldMatrix()))
+	{
+		MSG_BOX(TEXT("Failed to Bind_WorldMatrix : Render"));
+		return E_FAIL;
+	}
+
+	m_pGraphic_Device->SetTransform(D3DTS_VIEW, &m_ViewMatrix);
+	m_pGraphic_Device->SetTransform(D3DTS_PROJECTION, &m_ProjMatrix);
+
+	if (FAILED(m_pTextureCom->Bind_Texture(0, 0)))
+	{
+		MSG_BOX(TEXT("Failed to Bind_Texture : Render"));
+		return E_FAIL;
+	}
+	//m_pGraphic_Device->SetRenderState(D3DRS_FILLMODE, D3DFILL_WIREFRAME);
+	if (FAILED(Set_RenderState()))
+	{
+		MSG_BOX(TEXT("Failed to Set_RenderState : Render"));
+		return E_FAIL;
+	}
+	if (FAILED(m_pVIBuffer_Com->Render()))
+	{
+		MSG_BOX(TEXT("Failed to Render : Render"));
+		return E_FAIL;
+	}
+	if (FAILED(Reset_RenderState()))
+	{
+		MSG_BOX(TEXT("Failed to Reset_RenderState : Render"));
+		return E_FAIL;
+	}
+	
+
+	return S_OK;
+}
+
+HRESULT CPlayerHpUI::Add_Components()
+{	/* For.Com_VIBuffer */
+	if (FAILED(__super::Add_Component(LEVEL_STATIC, TEXT("Prototype_Component_VIBuffer_Rect"), TEXT("Com_VIBuffer"), reinterpret_cast<CComponent**>(&m_pVIBuffer_Com))))
+	{
+		MSG_BOX(TEXT("Failed to Prototype_Component_VIBuffer_Rect : Add_Components"));
+		return E_FAIL;
+	}
+
+	/* For.Com_Texture */
+	if (FAILED(__super::Add_Component(g_eLevel, TEXT("Prototype_Component_Texture_Indicator_Monster"), TEXT("Com_Texture"), reinterpret_cast<CComponent**>(&m_pTextureCom))))
+	{
+		MSG_BOX(TEXT("Failed to Prototype_Component_Texture_PlayerBack : Add_Components"));
+		return E_FAIL;
+	}
+	return S_OK;
+}
+
+
+HRESULT CPlayerHpUI::Set_RenderState()
+{
+	if (FAILED(m_pGraphic_Device->SetSamplerState(0,D3DSAMP_MINFILTER, D3DTEXF_POINT)))
+	{
+		MSG_BOX(TEXT("Failed to SetSamplerState : D3DSAMP_MINFILTER"));
+		return E_FAIL;
+	}
+	if (FAILED(m_pGraphic_Device->SetSamplerState(0, D3DSAMP_MAGFILTER, D3DTEXF_POINT)))
+	{
+		MSG_BOX(TEXT("Failed to SetSamplerState : D3DSAMP_MAGFILTER"));
+		return E_FAIL;
+	}
+	if (FAILED(m_pGraphic_Device->SetSamplerState(0, D3DSAMP_MIPFILTER, D3DTEXF_POINT)))
+	{
+		MSG_BOX(TEXT("Failed to SetSamplerState : D3DSAMP_MIPFILTER"));
+		return E_FAIL;
+	}
+
+	if (FAILED(m_pGraphic_Device->SetRenderState(D3DRS_ALPHATESTENABLE, TRUE)))
+	{
+		MSG_BOX(TEXT("Failed to SetRenderState : D3DRS_ALPHATESTENABLE"));
+		return E_FAIL;
+	}
+	if (FAILED(m_pGraphic_Device->SetRenderState(D3DRS_ALPHAREF, 128)))
+	{
+		MSG_BOX(TEXT("Failed to SetRenderState : D3DRS_ALPHAREF"));
+		return E_FAIL;
+	}
+	if (FAILED(m_pGraphic_Device->SetRenderState(D3DRS_ALPHAFUNC, D3DCMP_GREATER)))
+	{
+		MSG_BOX(TEXT("Failed to SetRenderState : D3DRS_ALPHAFUNC"));
+		return E_FAIL;
+	}
+	return S_OK;
+}
+
+HRESULT CPlayerHpUI::Reset_RenderState()
+{
+	if (FAILED(m_pGraphic_Device->SetRenderState(D3DRS_ALPHATESTENABLE, FALSE)))
+	{
+		MSG_BOX(TEXT("Failed to SetRenderState : D3DRS_ALPHATESTENABLE"));
+		return E_FAIL;
+	}
+
+	if (FAILED(m_pGraphic_Device->SetSamplerState(0, D3DSAMP_MINFILTER, D3DTEXF_LINEAR)))
+	{
+		MSG_BOX(TEXT("Failed to SetSamplerState : D3DSAMP_MINFILTER"));
+		return E_FAIL;
+	}
+	if (FAILED(m_pGraphic_Device->SetSamplerState(0, D3DSAMP_MAGFILTER, D3DTEXF_LINEAR)))
+	{
+		MSG_BOX(TEXT("Failed to SetSamplerState : D3DSAMP_MAGFILTER"));
+		return E_FAIL;
+	}
+	if (FAILED(m_pGraphic_Device->SetSamplerState(0, D3DSAMP_MIPFILTER, D3DTEXF_LINEAR)))
+	{
+		MSG_BOX(TEXT("Failed to SetSamplerState : D3DSAMP_MIPFILTER"));
+		return E_FAIL;
+	}
+	return S_OK;
+}
+
+void CPlayerHpUI::Chase_Player()
+{
+	//플레이어의 주소 얻어오기
+	CPlayer* pPlayer = dynamic_cast<CPlayer*>(m_pGameInstance->Get_Object(LEVEL_STATIC, TEXT("Layer_Player")));
+
+	//플레이어의 뷰포트의 위치 얻어오기
+	_float3 vPlayerViewPortPosition = pPlayer->Return_ViewPort_Pos();
+
+	m_fX = vPlayerViewPortPosition.x; //투영스페이스 x에 640을 곱, 더하기 640해주면 뷰포트의 x 위치가 나옴.
+	m_fY = vPlayerViewPortPosition.y - 150.f;//투영스페이스 y에 360을 곱, 더하기 360해주면 뷰포트의 x 위치가 나옴.
+
+	m_pTransform->Set_State(CTransform::STATE_POSITION, _float3(m_fX - g_iWinSizeX * 0.5f, -m_fY + g_iWinSizeY * 0.5f, 0.f));
+
+}
+
+CPlayerHpUI* CPlayerHpUI::Create(LPDIRECT3DDEVICE9 pGraphic_Device)
+{
+	CPlayerHpUI* pInstance = new CPlayerHpUI(pGraphic_Device);
+	if (FAILED(pInstance->Initialize_Prototype()))
+	{
+		MSG_BOX(TEXT("Faild to Created : CPlayerHpUI"));
+
+		Safe_Release(pInstance);
+	}
+
+	return pInstance;
+}
+
+CGameObject* CPlayerHpUI::Clone(void* pArg)
+{
+	CPlayerHpUI* pInstance = new CPlayerHpUI(*this);
+	if (FAILED(pInstance->Initialize(pArg)))
+	{
+		MSG_BOX(TEXT("Faild to Cloned : CPlayerHpUI"));
+
+		Safe_Release(pInstance);
+	}
+
+	return pInstance;
+}
+
+void CPlayerHpUI::Free()
+{
+	Safe_Release(m_pVIBuffer_Com);
+	Safe_Release(m_pTextureCom);
+
+	__super::Free();
+}
+
+HRESULT CPlayerHpUI::Set_RenderState(_ulong lAphaRef)
+{
+	return S_OK;
+}

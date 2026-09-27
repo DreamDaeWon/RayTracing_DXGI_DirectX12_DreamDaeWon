@@ -1,0 +1,947 @@
+#include "pch.h"
+#include "AirPlane.h"
+#include "GameInstance.h"
+
+#include "VIBuffer_Terrain.h"
+#include "State.h"
+#include "Bullet.h"
+#include "Effect_Splat.h"
+#include "Effect_Splat_Orange.h"
+#include "Effect_Splat_Blue.h"
+#include "Splat_Default.h"
+#include "QAim.h"
+#include "Weapon_Pupa.h"
+#include "Player_Skill.h"
+#include "Roll.h"
+#include "Weapon.h"
+#include "Effect_Player_Move.h"
+#include "Effect_Sparkle.h"
+#include "Item_Weapon.h"
+#include "Monster_Bullet_Base.h" 
+#include "Effect_Hit_Bullet.h"
+#include "State.h"
+#include "Emp.h"
+
+CAirPlane::CAirPlane(LPDIRECT3DDEVICE9 pGraphic_Device) :
+	CLandObject(pGraphic_Device)
+{
+}
+
+CAirPlane::CAirPlane(const CAirPlane& rhs) :
+	CLandObject(rhs)
+{
+}
+
+HRESULT CAirPlane::Initialize_Prototype()
+{
+	if (FAILED(__super::Initialize_Prototype()))
+	{
+		MSG_BOX(TEXT("Failed to Initialize_Prototype : __super,CAirPlane"));
+		return E_FAIL;
+	}
+
+	return S_OK;
+}
+
+HRESULT CAirPlane::Initialize(void* pArg)
+{
+
+	if (FAILED(__super::Initialize(pArg)))
+	{
+		MSG_BOX(TEXT("Failed to Initialize : __super,CAirPlane"));
+		return E_FAIL;
+	}
+
+	if (FAILED(Add_Components()))
+	{
+		MSG_BOX(TEXT("Failed to Add_Components : __super,CAirPlane"));
+		return E_FAIL;
+	}
+	m_tBulletInfo.iNowBulletNum = 100;
+	m_tBulletInfo.iMaxBulletNum = 100;
+	m_tBulletInfo.fCP = 50.f;
+	if (FAILED(Clone_Bullet()))
+	{
+		MSG_BOX(TEXT("Failed to Clone_Bullet : CWeapon_Atlas"));
+		return E_FAIL;
+	}
+
+	//if()현재 레벨이 게임플레이이면
+	m_pTransform->Set_State(CTransform::STATE_POSITION, _float3(25.f, 0.f, 15.f));
+	m_WorldMatrix = *m_pTransform->Get_WorldMatrix();
+	dynamic_cast<CCollider_Sphere*>(m_pCollider_Com[COLLIDER_SPHERE])->Set_Range(0.5f);
+	return S_OK;
+}
+
+_uint CAirPlane::Tick(_float fTimeDelta)
+{
+
+	if (m_bInvincibility) //무적기 먼저 쓰시면
+	{
+		m_fInvincibilityTime += fTimeDelta;
+		m_bHit = false;
+	}
+	else if (m_bHit) //hit무시
+	{
+		m_pStateCom->Set_Hp(-1);
+		m_bInvincibility = true;
+		m_bHit = false;
+		m_fHitTime = 2.f;
+		m_fInvincibilityMaxTime = m_fHitTime;
+	}
+
+
+	for (size_t i = 0; i < SKILL_SLOT_END; i++)
+	{
+		m_pSkillCoolTimeTime[i] += fTimeDelta;
+	}
+
+	if (m_fHitTime > 0.f) //맞았을때 그의 시간은 흐른다.
+		m_fHitTime -= fTimeDelta;
+	else
+		m_fHitTime = 0.f;
+
+	if (m_bInvincibility && m_fInvincibilityTime > m_fInvincibilityMaxTime)
+	{
+		m_fInvincibilityTime = 0.f;
+		m_bInvincibility = false;
+	}
+
+
+	if (m_bDead)
+		return OBJECT_DEAD;
+
+
+
+	Landing_Terrain();
+	Key_Input(fTimeDelta);
+
+	Motion_Change(fTimeDelta);
+
+	//Collision 정보 업데이트
+	Collider_Update();
+
+	__super::Tick(fTimeDelta);
+
+	return OBJECT_NOTHING;
+}
+
+void CAirPlane::Late_Tick(_float fTimeDelta)
+{
+	__super::Late_Tick(fTimeDelta);
+
+	//For. collision
+	Collision(fTimeDelta);
+	m_pGameInstance->Add_RenderObject(CRenderer::RENDER_NONBLEND, this);
+
+
+}
+
+HRESULT CAirPlane::Render()
+{
+
+	if (m_fHitTime > 0.f)
+		if ((_uint)(m_fHitTime * 5.f) % 2 == 0)
+		{
+			return S_OK;
+		}
+
+
+	if (FAILED(m_pTransform->Bind_WorldMatrix()))
+	{
+		MSG_BOX(TEXT("Failed to Bind_WorldMatrix : Render"));
+		return E_FAIL;
+	}
+	if (FAILED(m_pTextureCom->Bind_Texture(0,0)))
+	{
+		MSG_BOX(TEXT("Failed to Bind_Texture : Render"));
+		return E_FAIL;
+	}
+	if (FAILED(Set_RenderState()))
+	{
+		MSG_BOX(TEXT("Failed to Set_RenderState : Render"));
+		return E_FAIL;
+	}
+	if (FAILED(m_pVIBuffer_Com->Render()))
+	{
+		MSG_BOX(TEXT("Failed to Render : Render"));
+		return E_FAIL;
+	}
+	if (FAILED(Reset_RenderState()))
+	{
+		MSG_BOX(TEXT("Failed to Reset_RenderState : Render"));
+		return E_FAIL;
+	}
+
+
+	return S_OK;
+}
+
+
+
+HRESULT CAirPlane::Drop_Item(_uint iIndex)
+{
+	//power가 될거임
+
+	return S_OK;
+}
+
+void CAirPlane::Return_Look_Position(_float3* pvLook, _float3* pvPosition)
+{
+	*pvLook = m_pTransform->Get_State(CTransform::STATE_LOOK);
+	*pvPosition = m_pTransform->Get_State(CTransform::STATE_POSITION);
+}
+
+void CAirPlane::Look_At(const _float3& vAt)
+{
+	m_pTransform->LookAt(vAt);
+}
+
+HRESULT CAirPlane::Add_Components()
+{	/* For.Com_VIBuffer */
+	if (FAILED(__super::Add_Component(LEVEL_1945, TEXT("Prototype_Component_VIBuffer_AirPlane"), TEXT("Com_VIBuffer"), reinterpret_cast<CComponent**>(&m_pVIBuffer_Com))))
+	{
+		MSG_BOX(TEXT("Failed to Prototype_Component_VIBuffer_AirPlane : Add_Components"));
+		return E_FAIL;
+	}
+
+	/* For.Com_Texture */
+	//Idle
+	if (FAILED(__super::Add_Component(LEVEL_1945, TEXT("Prototype_Component_Texture_AirPlane"),
+		TEXT("Com_Texture"), (CComponent**)&m_pTextureCom)))
+	{
+		MSG_BOX(TEXT("Failed to Prototype_Component_Texture_PlayerIdle : Add_Components"));
+		return E_FAIL;
+	}
+	/* For. Com_State*/
+	CState::STATE_DESC StateDest = {};
+	StateDest.fCP = 5.f;
+	StateDest.fMaxHp = 3.f;
+	if (FAILED(__super::Add_Component(LEVEL_STATIC, TEXT("Prototype_Component_State"), TEXT("Com_State"), reinterpret_cast<CComponent**>(&m_pStateCom),&StateDest)))
+	{
+		MSG_BOX(TEXT("Failed to Prototype_Component_State : Add_Components"));
+		return E_FAIL;
+	}
+
+	/* For. Com_Collider*/
+	if (FAILED(__super::Add_Component(LEVEL_STATIC, TEXT("Prototype_Component_Collider_Rect"), TEXT("Com_Collider_Rect"), reinterpret_cast<CComponent**>(&m_pCollider_Com[COLLIDER_RECT]))))
+	{
+		MSG_BOX(TEXT("Failed to Prototype_Component_Collider_Rect : Add_Components"));
+		return E_FAIL;
+	}
+
+	if (FAILED(__super::Add_Component(LEVEL_STATIC, TEXT("Prototype_Component_Collider_Sphere"), TEXT("Com_Collider_Sphere"), reinterpret_cast<CComponent**>(&m_pCollider_Com[COLLIDER_SPHERE]))))
+	{
+		MSG_BOX(TEXT("Failed to Prototype_Component_Collider_Sphere : Add_Components"));
+		return E_FAIL;
+	}
+
+	if (FAILED(__super::Add_Component(LEVEL_STATIC, TEXT("Prototype_Component_Collider_Cube_AABB"), TEXT("Com_Collider_Cube_AABB"), reinterpret_cast<CComponent**>(&m_pCollider_Com[COLLIDER_CUBE_AABB]))))
+	{
+		MSG_BOX(TEXT("Failed to Prototype_Component_Collider_Cube_AABB : Add_Components"));
+		return E_FAIL;
+	}
+	return S_OK;
+}
+
+HRESULT CAirPlane::Clone_Bullet()
+{
+	CGameObject::GAMEOBJECT_DESC GameObjectDesc = {};
+	GameObjectDesc.fSpeedPerSec = 200.f;
+
+	for (_uint i = 0; i < m_tBulletInfo.iMaxBulletNum; i++)
+	{
+		if (FAILED(m_pGameInstance->Add_Clone(LEVEL_1945, TEXT("Layer_AirPlane_Bullet"), TEXT("Prototype_GameObject_Bullet"), &GameObjectDesc)))
+		{
+			MSG_BOX(TEXT("Failed to Ready_Layer_Bullet : CLevel_GamePlay"));
+			return E_FAIL;
+		}
+	}
+
+	m_vecBullet.reserve(m_tBulletInfo.iMaxBulletNum);
+
+	list<CGameObject*>* pBulletList = m_pGameInstance->Get_List(LEVEL_1945, TEXT("Layer_AirPlane_Bullet"));
+	if (nullptr == pBulletList)
+		return E_FAIL;
+
+	auto iter = (*pBulletList).begin();
+	for (_uint i = 0; i < m_tBulletInfo.iMaxBulletNum; i++)
+	{
+		if (iter == (*pBulletList).end())
+			break;
+		m_vecBullet.push_back((CBullet*)(*iter));
+		Safe_AddRef((*iter));
+		iter++;
+	}
+	m_tBulletInfo.iNowBulletNum = m_tBulletInfo.iMaxBulletNum;
+
+	return S_OK;
+}
+
+void CAirPlane::Mouse_Axis_Turn(_float fTimeDelta)
+{
+	POINT ptMouse = {};
+	GetCursorPos(&ptMouse);
+	
+	_long lDeltaX = ptMouse.x - m_ptMouse.x;
+	_long lDeltaY = ptMouse.y - m_ptMouse.y;
+
+	if (0.f != lDeltaX)
+	{
+		m_pTransform->Turn(_float3(0.f,1.f,0.f), fTimeDelta * lDeltaX);
+	}
+
+	if (0.f != lDeltaY)
+	{
+		m_pTransform->Turn(m_pTransform->Get_State(CTransform::STATE_RIGHT), fTimeDelta * lDeltaY);
+	}
+
+	m_ptMouse = ptMouse;
+}
+
+void CAirPlane::Landing_Terrain()
+{
+	//CVIBuffer_Terrain* pVITerrainCom = dynamic_cast<CVIBuffer_Terrain*>(m_pGameInstance->Get_Component(LEVEL_TUTORIAL, TEXT("Layer_Terrain"), TEXT("Com_VIBuffer")));
+	if (nullptr == m_pTerrainVIBufferCom)
+		return;
+	_float3 vPos = m_pTransform->Get_State(CTransform::STATE_POSITION);
+	vPos.y = m_pTerrainVIBufferCom->Landing_Object(vPos);
+	m_pTransform->Set_State(CTransform::STATE_POSITION,vPos);
+}
+
+_bool CAirPlane::Roll(_float fTimeDelta)
+{
+	m_fTimeRoll += fTimeDelta;
+	if (m_fTimeRoll > 0.3f)
+	{
+		m_fTimeRoll = 0.f;
+		_float3 vScale = m_pTransform->Get_Scale();
+		m_pTransform->Set_State(CTransform::STATE_UP, _float3(0.f,1.f,0.f)* vScale.y);
+		m_pTransform->Set_State(CTransform::STATE_RIGHT, _float3(1.f,0.f,0.f)* vScale.x);
+		m_pTransform->Set_State(CTransform::STATE_LOOK, _float3(0.f,0.f,1.f)* vScale.z);
+
+		return false;
+	}
+	if (m_vPlayerLook.x > 0.f)
+	{
+		m_pTransform->Set_State(CTransform::STATE_POSITION, m_pTransform->Get_State(CTransform::STATE_POSITION)+ _float3(1.f,0.f,0.f) *fTimeDelta*40.f);
+		m_pTransform->Turn(_float3(0.f, 0.f, -1.f), fTimeDelta * 30.f);
+	}
+	else if (m_vPlayerLook.x < 0.f)
+	{
+		m_pTransform->Set_State(CTransform::STATE_POSITION, m_pTransform->Get_State(CTransform::STATE_POSITION) + _float3(-1.f, 0.f, 0.f) * fTimeDelta * 40.f);
+		m_pTransform->Turn(_float3(0.f, 0.f, 1.f), fTimeDelta * 30.f);
+	}
+	if (m_vPlayerLook.z > 0.f)
+	{
+		m_pTransform->Set_State(CTransform::STATE_POSITION, m_pTransform->Get_State(CTransform::STATE_POSITION) + _float3(0.f, 0.f, 1.f) * fTimeDelta * 40.f);
+		m_pTransform->Turn(_float3(0.f, 0.f, 1.f), fTimeDelta * 10.f);
+	}
+	else if (m_vPlayerLook.z < 0.f)
+	{
+		m_pTransform->Set_State(CTransform::STATE_POSITION, m_pTransform->Get_State(CTransform::STATE_POSITION) + _float3(0.f, 0.f, -1.f) * fTimeDelta * 40.f);
+		m_pTransform->Turn(_float3(0.f, 0.f, -1.f), fTimeDelta * 10.f);
+
+	}
+
+
+	return true;
+
+}
+
+
+
+_float3 CAirPlane::Return_ViewPort_Pos()
+{
+	_float3 vPosition = m_pTransform->Get_State(CTransform::STATE_POSITION);
+
+	_float4x4 ViewMatrix, ProjectionMatrix;
+
+	m_pGraphic_Device->GetTransform(D3DTS_VIEW, &ViewMatrix);
+	m_pGraphic_Device->GetTransform(D3DTS_PROJECTION, &ProjectionMatrix);
+
+	// 월드 > 뷰 > 투영
+	vPosition = *D3DXVec3TransformCoord(&vPosition, &vPosition, &ViewMatrix);
+	vPosition = *D3DXVec3TransformCoord(&vPosition, &vPosition, &ProjectionMatrix);
+
+	// 투영 스페이스 >> 뷰포트
+	vPosition.x = vPosition.x * g_iWinSizeX * 0.5f + g_iWinSizeX * 0.5f;
+	vPosition.y = vPosition.y * g_iWinSizeY * 0.5f + g_iWinSizeY * 0.5f;
+
+
+	return vPosition;
+}
+
+HRESULT CAirPlane::Set_RenderState()
+{
+	if (FAILED(m_pGraphic_Device->SetRenderState(D3DRS_ALPHATESTENABLE, TRUE)))
+	{
+		MSG_BOX(TEXT("Failed to SetRenderState : D3DRS_ALPHATESTENABLE"));
+		return E_FAIL;
+	}
+	if (FAILED(m_pGraphic_Device->SetRenderState(D3DRS_ALPHAREF, 128)))
+	{
+		MSG_BOX(TEXT("Failed to SetRenderState : D3DRS_ALPHAREF"));
+		return E_FAIL;
+	}
+	if (FAILED(m_pGraphic_Device->SetRenderState(D3DRS_ALPHAFUNC, D3DCMP_GREATER)))
+	{
+		MSG_BOX(TEXT("Failed to SetRenderState : D3DRS_ALPHAFUNC"));
+		return E_FAIL;
+	}
+	return S_OK;
+}
+
+HRESULT CAirPlane::Reset_RenderState()
+{
+	if (FAILED(m_pGraphic_Device->SetRenderState(D3DRS_ALPHATESTENABLE, FALSE)))
+	{
+		MSG_BOX(TEXT("Failed to SetRenderState : D3DRS_ALPHATESTENABLE"));
+		return E_FAIL;
+	}
+
+	return S_OK;
+}
+
+HRESULT CAirPlane::Motion_Change(_float fTimeDelta)
+{
+	if (m_ePreState != m_eCurState)
+	{
+		/*switch (m_eCurState)
+		{
+		}*/
+		m_ePreState = m_eCurState;
+	}
+	if (m_ePreAiming != m_eCurAiming)
+	{
+		switch (m_eCurAiming)
+		{
+		case AIMING_NOTHING:
+			break;
+		case AIMING_SHOOT:
+			break;
+		case AIMING_GUN_CHANGE:
+			break;
+		
+		case STATE_END:
+			break;
+		}
+		m_ePreState = m_eCurState;
+	}
+
+		return S_OK;
+}
+
+
+
+_float3 CAirPlane::Compute_MovePos()
+{
+	CVIBuffer* pVIBuffer = dynamic_cast<CVIBuffer*>(m_pTerrainVIBufferCom);
+	_float3 vDestinationPosition = pVIBuffer->Compute_Picking(m_pTerrainTranformCom);
+
+	vDestinationPosition = *D3DXVec3TransformCoord(&vDestinationPosition, &vDestinationPosition, m_pTerrainTranformCom->Get_WorldMatrix());
+
+	return vDestinationPosition;
+}
+
+void CAirPlane::Shot_Bullet()
+{
+	if (0 >= m_tBulletInfo.iNowBulletNum || m_tBulletInfo.iMaxBulletNum < m_tBulletInfo.iNowBulletNum)
+		return;
+
+	m_pGameInstance->PlaySoundW(TEXT("Pupa_Shoot.wav"), CSound_Manager::CHANNEL_WEAPON, 0.2f);
+	_float3 vRayDir = {};
+	_float3 vRayPos = {};
+	m_pGameInstance->Get_World_Mouse_Ray(&vRayDir, &vRayPos);
+	m_vecBullet[m_tBulletInfo.iNowBulletNum - 1]->Set_Pos_Dir(vRayPos, vRayDir);
+	m_vecBullet[m_tBulletInfo.iNowBulletNum - 1]->Set_Life_Time();
+	--m_tBulletInfo.iNowBulletNum;
+
+
+}
+
+
+void CAirPlane::Look_At_Aim()
+{
+	_float3 vColPos = Compute_MovePos();
+	//함선은 항상 앞을 봐야하는 데..! 클릭을 했을 때 마우스 포인터의 z위치가 함선보다 뒤에 있는 경우... => 마우스 포인터 강제적으로 z값을 함선의 z보다앞으로 주자
+	if (vColPos.z < m_pTransform->Get_State(CTransform::STATE_POSITION).z)
+		vColPos.z = m_pTransform->Get_State(CTransform::STATE_POSITION).z + 50.f;
+	//카메라가 목적지를 보게해야함 
+	if (nullptr == m_pDWCameraTranformCom)
+	{
+		m_pDWCameraTranformCom = dynamic_cast<CTransform*>(m_pGameInstance->Get_Component(LEVEL_1945, TEXT("Layer_Camera"), g_strTransformTag));
+		if (nullptr != m_pDWCameraTranformCom)
+			Safe_AddRef(m_pDWCameraTranformCom);
+	}
+		
+	// y는 플레이어의 눈높이로..
+	m_pDWCameraTranformCom->Set_State(CTransform::STATE_POSITION, m_pTransform->Get_State(CTransform::STATE_POSITION));
+	//마우스 포즈를 카메라로 넘겨 줌
+	m_vMousePos = _float3(vColPos.x, m_pTransform->Get_State(CTransform::STATE_POSITION).y, vColPos.z);
+}
+
+
+
+void CAirPlane::Collider_Update()
+{
+	//Collision
+	_float4x4 WorldMatrix = *m_pTransform->Get_WorldMatrix();
+	m_pCollider_Com[COLLIDER_RECT]->Update_Collider_Info(WorldMatrix);
+	m_pCollider_Com[COLLIDER_SPHERE]->Update_Collider_Info(WorldMatrix);
+	m_pCollider_Com[COLLIDER_CUBE_AABB]->Update_Collider_Info(WorldMatrix);
+}
+
+void CAirPlane::Collision(_float fTimeDelta)
+{
+	Collision_Wall();
+	Collision_Monster();
+	Collision_Layser();
+	Collision_MoonStone();
+	Collider_Update();
+	Collision_Monster_Bullet(fTimeDelta);
+}
+
+void CAirPlane::Collision_Wall()
+{
+	//중점에서 룩방향(나중에 8방향)으로 스케일(또는 일정거리)크기의 레이를 쏨.
+	//쏴서 맞으면 밀어내기.
+	_float3 vRayPos = m_pTransform->Get_State(CTransform::STATE_POSITION);
+	_float3 vRayDir[4] = {
+		 m_pTransform->Get_State(CTransform::STATE_LOOK),
+		 m_pTransform->Get_State(CTransform::STATE_RIGHT),
+		 -m_pTransform->Get_State(CTransform::STATE_LOOK),
+		 -m_pTransform->Get_State(CTransform::STATE_RIGHT)
+	};
+	_float fLength[4] = {
+		D3DXVec3Length(&vRayDir[0]),
+		D3DXVec3Length(&vRayDir[1]),
+		D3DXVec3Length(&vRayDir[2]),
+		D3DXVec3Length(&vRayDir[3])
+	};
+	for (size_t i = 0; i < 4; i++)
+	{
+		D3DXVec3Normalize(&vRayDir[i], &vRayDir[i]);
+	}
+	
+	list<CGameObject*>* pWallList = m_pGameInstance->Get_List(g_eLevel, TEXT("Layer_Wall"));
+	if (nullptr == pWallList)
+		return;
+
+	_float fMinDist(1000.f); //큰 값으로 초기화
+	for (auto& iter : *pWallList)//Wall List 전부를 순회하면서 충돌을 판단한다.
+	{
+		CCollider_Rect* pCollider_Rect = dynamic_cast<CCollider_Rect*>(iter->Get_Component(TEXT("Com_Collider_Rect")));
+		if (nullptr == pCollider_Rect)
+			continue;
+		_float fDist(1000.f);
+		for (size_t i = 0; 4 > i; ++i)
+		{
+			if (m_pGameInstance->Collision_Rect_Ray_Same_Space(pCollider_Rect, vRayDir[i], vRayPos, fLength[i], &fDist)) //충돌이 일어났을 때
+			{
+				if (fMinDist > fDist) //
+				{
+					fMinDist = fDist;
+					m_pTransform->Set_State(CTransform::STATE_POSITION, vRayPos + vRayDir[i] * (fMinDist - 1.f));
+				}
+			}
+		}
+	}
+}
+
+void CAirPlane::Collision_Monster()
+{
+	list<CGameObject*>* pMonsterList = m_pGameInstance->Get_List(g_eLevel, TEXT("Layer_Monster"));
+	if (nullptr == pMonsterList)
+		return;
+
+	CCollider_Cube_AABB* pAirPlaneColliderCubeAABB = dynamic_cast<CCollider_Cube_AABB*>(m_pCollider_Com[COLLIDER_CUBE_AABB]);
+	if (nullptr == pAirPlaneColliderCubeAABB)
+		return;
+
+	for (auto iter : *pMonsterList)
+	{
+		CCollider_Cube_AABB* pMonsterColliderCubeAABB = dynamic_cast<CCollider_Cube_AABB*>(iter->Get_Component(TEXT("Com_Collider_Cube_AABB")));
+		if (nullptr == pMonsterColliderCubeAABB)
+			continue;
+		if (m_pGameInstance->Collision_AABB(pAirPlaneColliderCubeAABB, pMonsterColliderCubeAABB))
+		{
+			Set_Hit(true);
+			iter->Set_Dead();
+			return;
+		}
+	}
+}
+
+void CAirPlane::Collision_Layser()
+{
+	list<CGameObject*>* pBossLayserList = m_pGameInstance->Get_List(g_eLevel, TEXT("Layer_Boss_Layser"));
+	if (nullptr == pBossLayserList)
+		return;
+
+	//구 충돌
+	CCollider_Cube_AABB* pCollider_Cube_AABB = dynamic_cast<CCollider_Cube_AABB*>(m_pCollider_Com[COLLIDER_CUBE_AABB]);
+	for (auto iter = pBossLayserList->begin(); iter != pBossLayserList->end(); ++iter)
+	{
+		CCollider_Cube_AABB* pBossLayserCollider = dynamic_cast<CCollider_Cube_AABB*>(((*iter))->Get_Component(TEXT("Com_Collider_Cube_AABB")));
+		if (m_pGameInstance->Collision_AABB(pCollider_Cube_AABB, pBossLayserCollider))
+		{
+			//(*iter)->Set_Dead();
+			Set_Hit(true);
+		}
+	}
+}
+
+void CAirPlane::Collision_MoonStone()
+{
+	list<CGameObject*>* pMoonStoneList = m_pGameInstance->Get_List(g_eLevel, TEXT("Layer_MoonStone"));
+	if (nullptr == pMoonStoneList)
+		return;
+
+	CCollider_Sphere* pAirPlaneColliderSphere = dynamic_cast<CCollider_Sphere*>(m_pCollider_Com[COLLIDER_SPHERE]);
+	if (nullptr == pAirPlaneColliderSphere)
+		return;
+
+	for (auto iter : *pMoonStoneList)
+	{
+		CCollider_Sphere* pMonsterColliderSphere = dynamic_cast<CCollider_Sphere*>(iter->Get_Component(TEXT("Com_Collider_Sphere")));
+		if (nullptr == pMonsterColliderSphere)
+			continue;
+		if (m_pGameInstance->Collision_Sphere(pAirPlaneColliderSphere, pMonsterColliderSphere))
+		{
+			Set_Hit(true);
+			iter->Set_Dead();
+			return;
+		}
+	}
+}
+
+void CAirPlane::Collision_Monster_Bullet(_float fTimeDelta)
+{
+	//몬스터 불릿 레이어를 가져와서 플레이어의 콜라이더 렉트와 충돌처리를 한다.
+	//몬스터 불릿(레이) 플레이어(렉트)
+	list<CGameObject*>* pMonsterBulletList = m_pGameInstance->Get_List(g_eLevel, TEXT("Layer_Monster_Bullet"));
+	if (nullptr == pMonsterBulletList)
+		return;
+
+	//구 충돌
+	CCollider_Sphere* pCollider_Sphere = dynamic_cast<CCollider_Sphere*>(m_pCollider_Com[COLLIDER_SPHERE]);
+	for (auto iter = pMonsterBulletList->begin(); iter != pMonsterBulletList->end(); ++iter)
+	{
+		CCollider_Sphere* pMonsterBulletCollider = dynamic_cast<CCollider_Sphere*>(((*iter))->Get_Component(TEXT("Com_Collider_Sphere")));
+		if (m_pGameInstance->Collision_Sphere(pCollider_Sphere, pMonsterBulletCollider))
+		{
+			(*iter)->Set_Dead();
+			Set_Hit(true);
+		}
+	}
+
+}
+
+_float CAirPlane::Collision_Bullet_Rect(CCollider_Rect* pCollider_Rect, _float fTimeDelta)
+{
+	_float fResult(0.f);
+	CEffect_Hit_Bullet* pEffectHitBullet = dynamic_cast<CEffect_Hit_Bullet*>(m_pGameInstance->Get_Object(LEVEL_STATIC, TEXT("Layer_Effect_Hit_Bullet")));
+
+	for (size_t i = 0; i < m_tBulletInfo.iMaxBulletNum; i++)
+	{
+		if (m_vecBullet[i]->Get_Dead())
+			continue;
+
+		_float fLength(0.f), fDistance(0.f);
+		_float3 vRayDir = { 0.f,0.f,0.f };
+		_float3 vRayPos = { 0.f,0.f,0.f };
+
+		m_vecBullet[i]->Get_RayPos_RayDir_Length(fTimeDelta, &vRayPos, &vRayDir, &fLength);
+		if (m_pGameInstance->Collision_Rect_Ray_Same_Space(pCollider_Rect, vRayDir, vRayPos, fLength, &fDistance))
+		{
+			m_vecBullet[i]->Set_Dead();
+			pEffectHitBullet->Show_Explosion(vRayPos + vRayDir * (fDistance - 15.f), fTimeDelta);
+			fResult += m_tBulletInfo.fCP;
+		}
+	}
+	return fResult;
+}
+
+
+void CAirPlane::Key_Input(_float fTimeDelta)
+{
+
+	//TODO: 예은 - HP UI 연동 확인용
+	m_fTime += fTimeDelta;
+	if ((GetKeyState('H') & 0x8000) && m_fTime >= 2.f)
+	{
+		m_bHit = true;
+	}
+	if ((GetKeyState('Y') & 0x8000) && m_fTime >= 2.f && m_pStateCom->Get_State(CState::STATE_HP) < 3.f)
+	{
+		m_pStateCom->Set_Hp(1.f);
+		m_fTime = 0.f;
+	}
+	
+	//스킬
+	
+	if (m_pGameInstance->Key_Down(VK_SPACE)&& m_pSkillCoolTimeTime[SPACE_SKILL]> m_pSkillCoolTime[SPACE_SKILL])
+	{
+		m_bRoll = true;
+		m_pSkillCoolTimeTime[SPACE_SKILL] = 0.f;
+		m_bInvincibility = true;
+		m_fInvincibilityMaxTime = 0.5f;
+	}
+	if(m_bRoll)
+		m_bRoll = Roll(fTimeDelta);
+	if (m_iSkill>0.f&&m_pGameInstance->Key_Pressing(VK_SHIFT) && m_pSkillCoolTimeTime[SHIFT_SKILL] > m_pSkillCoolTime[SHIFT_SKILL])
+	{
+		m_pSkillCoolTimeTime[SHIFT_SKILL] = 0.f;
+		--m_iSkill;
+		CEmp::EMP_DESC Emp_desc = {};
+		Emp_desc.fLifeTime = 0.3f;
+		Emp_desc.fMaxScale = 100.f;
+		Emp_desc.pPlaneTransform = dynamic_cast<CTransform*>(m_pGameInstance->Get_Component(LEVEL_1945, TEXT("Layer_AirPlane"), g_strTransformTag.c_str()));
+		Emp_desc.fSpeedPerSec = 20.f;
+		if (FAILED(m_pGameInstance->Add_Clone(LEVEL_1945, TEXT("Layer_Emp"), TEXT("Prototype_GameObject_EMP"), &Emp_desc)))
+		{
+			MSG_BOX(TEXT("Failed to Ready_Layer_Monster : CLevel_GamePlay"));
+		}
+	}
+
+	if (((m_pGameInstance->Key_Pressing(VK_RBUTTON)&& !m_bRoll))|| m_bCutScene)
+	{
+		m_fTimeForBullet = 0.f;
+		if (m_bFirstAim)
+		{
+			Look_At_Aim();
+			m_bFirstAim = false;
+		}
+
+		_float3 vWDir = { 0.f,0.f,0.f };
+		_float3 vSDir = { 0.f,0.f,0.f };
+		_float3 vADir = { 0.f,0.f,0.f };
+		_float3 vDDir = { 0.f,0.f,0.f };
+
+		m_eCurState = STATE_AIMING;
+		if (m_pGameInstance->Key_Pressing('A'))
+		{
+			m_bChange = true;
+
+			if (m_pGameInstance->Key_Pressing('W'))
+			{
+				m_pTransform->Go_SL(fTimeDelta*0.5f, &vADir);
+			}
+			else if (m_pGameInstance->Key_Pressing('S'))
+			{
+				m_pTransform->Go_BL(fTimeDelta * 0.5f, &vADir);
+			}
+			else
+			{
+				m_pTransform->Go_Left(fTimeDelta * 0.5f);
+				vADir = -m_pTransform->Get_State(CTransform::STATE_RIGHT);
+			}
+		}
+		else if (m_pGameInstance->Key_Pressing('D'))
+		{
+			m_bChange = true;
+
+			if (m_pGameInstance->Key_Pressing('W'))
+			{
+				m_pTransform->Go_SR(fTimeDelta * 0.5f, &vDDir);
+			}
+			else if (m_pGameInstance->Key_Pressing('S'))
+			{
+				m_pTransform->Go_BR(fTimeDelta * 0.5f, &vDDir);
+			}
+			else
+			{
+				m_pTransform->Go_Right(fTimeDelta * 0.5f);
+				vDDir = m_pTransform->Get_State(CTransform::STATE_RIGHT);
+			}
+		}
+		else if (m_pGameInstance->Key_Pressing('W'))
+		{
+			m_bChange = true;
+
+			if (m_pGameInstance->Key_Pressing('A'))
+			{
+				m_pTransform->Go_SL(fTimeDelta * 0.5f, &vWDir);
+			}
+			else if (m_pGameInstance->Key_Pressing('D'))
+			{
+				m_pTransform->Go_SR(fTimeDelta * 0.5f, &vWDir);
+			}
+			else
+			{
+				m_pTransform->Go_Straight(fTimeDelta * 0.5f);
+				vWDir = m_pTransform->Get_State(CTransform::STATE_LOOK);
+			}
+		}
+		else if (m_pGameInstance->Key_Pressing('S'))
+		{
+			m_bChange = true;
+
+			if (m_pGameInstance->Key_Pressing('A'))
+			{
+				m_pTransform->Go_BL(fTimeDelta * 0.5f, &vSDir);
+			}
+			else if (m_pGameInstance->Key_Pressing('D'))
+			{
+				m_pTransform->Go_BR(fTimeDelta * 0.5f, &vSDir);
+			}
+			else
+			{
+				m_pTransform->Go_Backward(fTimeDelta * 0.5f);
+				vSDir = -m_pTransform->Get_State(CTransform::STATE_LOOK);
+			}
+		}
+		if (m_bChange == true)
+		{
+			m_vPlayerLook = vSDir + vWDir + vADir + vDDir;
+			m_bChange = false;
+		}
+
+	}
+	else if(!m_bRoll)
+	{
+		_float3 vWDir = { 0.f,0.f,0.f };
+		_float3 vSDir = { 0.f,0.f,0.f };
+		_float3 vADir = { 0.f,0.f,0.f };
+		_float3 vDDir = { 0.f,0.f,0.f };
+		m_fTimeForBullet += fTimeDelta;
+		m_tBulletInfo.iNowBulletNum += (1+(_uint)(m_fTimeForBullet));
+		if (m_tBulletInfo.iNowBulletNum >= m_tBulletInfo.iMaxBulletNum)
+			m_tBulletInfo.iNowBulletNum = m_tBulletInfo.iMaxBulletNum;
+		if (m_fTimeForBullet > 2.f)
+			m_fTimeForBullet = 0.f;
+		m_eCurState = STATE_IDLE;
+		if (m_pGameInstance->Key_Pressing('A'))
+		{
+			m_bChange = true;
+
+			if (m_pGameInstance->Key_Pressing('W'))
+				m_pTransform->Go_SL(fTimeDelta, &vADir);
+			else if(m_pGameInstance->Key_Pressing('S'))
+				m_pTransform->Go_BL(fTimeDelta, &vADir);
+			else
+			{
+				m_pTransform->Go_Left(fTimeDelta);
+				vADir = -m_pTransform->Get_State(CTransform::STATE_RIGHT);
+			}
+		}
+		else if (m_pGameInstance->Key_Pressing('D'))
+		{
+			m_bChange = true;
+
+			if (m_pGameInstance->Key_Pressing('W'))
+				m_pTransform->Go_SR(fTimeDelta, &vDDir);
+			else if (m_pGameInstance->Key_Pressing('S'))
+				m_pTransform->Go_BR(fTimeDelta, &vDDir);
+			else
+			{
+				m_pTransform->Go_Right(fTimeDelta);
+				vDDir = m_pTransform->Get_State(CTransform::STATE_RIGHT);
+
+			}
+		}
+		else if (m_pGameInstance->Key_Pressing('W'))
+		{
+			m_bChange = true;
+
+			if (m_pGameInstance->Key_Pressing('A'))
+				m_pTransform->Go_SL(fTimeDelta, &vWDir);
+			else if (m_pGameInstance->Key_Pressing('D'))
+				m_pTransform->Go_SR(fTimeDelta, &vWDir);
+			else
+			{
+				m_pTransform->Go_Straight(fTimeDelta);
+				vWDir = m_pTransform->Get_State(CTransform::STATE_LOOK);
+			}
+		}
+		else if (m_pGameInstance->Key_Pressing('S'))
+		{
+			m_bChange = true;
+
+			if (m_pGameInstance->Key_Pressing('A'))
+				m_pTransform->Go_BL(fTimeDelta, &vSDir);
+			else if (m_pGameInstance->Key_Pressing('D'))
+				m_pTransform->Go_BR(fTimeDelta, &vSDir);
+			else
+			{
+				m_pTransform->Go_Backward(fTimeDelta);
+				vSDir = -m_pTransform->Get_State(CTransform::STATE_LOOK);
+			}
+		}
+		m_bFirstAim = true;
+		if (m_bChange == true)
+		{
+			m_vPlayerLook = vSDir+vWDir+vADir + vDDir;
+			m_bChange = false;
+		}
+
+	}
+
+	//
+
+	if (m_pGameInstance->Key_Pressing(VK_RBUTTON) && m_pGameInstance->Key_Pressing(VK_LBUTTON)
+		&& m_fTime >0.2f)
+	{
+		if (m_tBulletInfo.iNowBulletNum > 0)
+		{
+			m_pGameInstance->StopSound(CSound_Manager::CHANNEL_WEAPON);
+			Shot_Bullet();
+			m_eCurAiming = AIMING_SHOOT;
+			m_fTime = 0.f;
+		}
+		else
+		{
+			m_fTime = 0.f;
+
+			//장전하라는 경고
+		}
+	}
+
+
+}
+
+
+CAirPlane* CAirPlane::Create(LPDIRECT3DDEVICE9 pGraphic_Device)
+{
+	CAirPlane* pInstance = new CAirPlane(pGraphic_Device);
+	if (FAILED(pInstance->Initialize_Prototype()))
+	{
+		MSG_BOX(TEXT("Faild to Created : CAirPlane"));
+
+		Safe_Release(pInstance);
+	}
+
+	return pInstance;
+}
+
+CGameObject* CAirPlane::Clone(void* pArg)
+{
+	CAirPlane* pInstance = new CAirPlane(*this);
+	if (FAILED(pInstance->Initialize(pArg)))
+	{
+		MSG_BOX(TEXT("Faild to Cloned : CAirPlane"));
+
+		Safe_Release(pInstance);
+	}
+	
+	return pInstance;
+}
+
+void CAirPlane::Free()
+{
+	for (auto iter = m_vecBullet.begin(); iter != m_vecBullet.end(); ++iter)
+	{
+		Safe_Release(*iter);
+	}
+	m_vecBullet.clear();
+	Safe_Release(m_pTextureCom);
+	Safe_Release(m_pVIBuffer_Com);
+	Safe_Release(m_pStateCom);
+	Safe_Release(m_pCollider_Com[COLLIDER_SPHERE]);
+	Safe_Release(m_pCollider_Com[COLLIDER_RECT]);
+	Safe_Release(m_pCollider_Com[COLLIDER_CUBE_AABB]);
+	Safe_Release(m_pDWCameraTranformCom);
+
+	__super::Free();
+}

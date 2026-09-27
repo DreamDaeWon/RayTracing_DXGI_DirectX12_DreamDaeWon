@@ -1,0 +1,98 @@
+#pragma once
+#include "LandObject.h"
+#include "Client_Defines.h"
+
+BEGIN(Engine)
+class CVIBuffer_Rect;
+class CTexture;
+//콜라이더 실험 BEGIN.
+class CCollider_Sphere;
+//콜라이더 실험 END.
+END
+
+BEGIN(Client)
+
+class CIceSplinter final : public CLandObject
+{
+public:
+	typedef struct tagIce_Splinter_Desc : public CLandObject::LANDOBJECT_DESC {
+		_float3 m_vPos; // 위치
+		_float m_fScale; // 크기
+		_float3 m_vLook; // 룩벡터
+		_uint m_iLifeTime; // 몇 번 나온 뒤에 사라질 건지?
+		_float m_fSpeed; // 속도
+		_float m_fDistance; // 이동할 거리
+
+	}ICE_SPLINTER_DESC;
+
+private:
+	CIceSplinter(LPDIRECT3DDEVICE9 pGraphic_Device);
+	CIceSplinter(const CIceSplinter& rhs);
+	virtual ~CIceSplinter() = default;
+
+public:
+	virtual HRESULT Initialize_Prototype() override;
+	virtual HRESULT Initialize(void* pArg) override;
+	virtual _uint Tick(_float fTimeDelta) override;
+	virtual void Late_Tick(_float fTimeDelta) override;
+	virtual HRESULT Render() override;
+
+public:
+	void Return_Look_Position(_float3* pvLook, _float3* pvPosition); // 현재 보는 곳과 위치를 알려주는 함수
+	_float3 Return_ViewPort_Pos(); // 뷰 포트 상의 현재 위치를 알려주는 함수
+
+private:
+	HRESULT Add_Components();
+	HRESULT Set_RenderState();
+	HRESULT Reset_RenderState();
+	void SetUp_BillBoard(); // 빌보드 함수 카메라 보도록 고정
+	void Look_Camera_Fixed_Y_Axis(); // 카메라를 봐도 010벡터와 모두 외적하게 Look와 Right벡터를 다시 만들어주는 함수
+	void GoDown(_float fTimeDelta);
+
+	void Collision_Player();
+
+private:
+	CTexture* m_pTextureCom = { nullptr };
+	CVIBuffer_Rect* m_pVIBuffer_Com = { nullptr };
+
+	//콜라이더 실험 BEGIN.
+	CCollider_Sphere* m_pCollider_Com = { nullptr };
+	//콜라이더 실험 END.
+
+	// 스킬 돌리기
+	_uint m_iSkill = { 0 };
+
+	// 시간
+	_float m_fTime = { 0.f }; // 총 시간
+
+	// 튀어나오는 속도
+	_float m_fUpSpeed = { 12.f };
+
+	// 앞으로 이동할 거리
+	_float m_fSpeed = { 1.f };
+
+	// 받아오는 몬스터의 룩벡터
+	_float3 m_vBossPos = {};
+
+	// 크기 값
+	_float m_fScale = { 0.5f };
+
+	// 몇 번 튀어나올건지?
+	_uint m_iLifeTime = { 0 };
+
+	// 어떤 색의 공 출력할건지?
+	_uint m_iTexNum = { 0 };
+
+	_float3 m_vLook = { 0.f, 1.f, 0.f };
+
+	// 쉐이킹
+	class CCamera_Player_DW* m_pCamera = { };
+	CTransform* m_pCameraTransform = { nullptr }; //카메라 트랜스폼
+
+public:
+	static CIceSplinter* Create(LPDIRECT3DDEVICE9 pGraphic_Device);
+	virtual CGameObject* Clone(void* pArg) override; // 이거 보스가 실행
+	virtual void Free() override;
+};
+
+END

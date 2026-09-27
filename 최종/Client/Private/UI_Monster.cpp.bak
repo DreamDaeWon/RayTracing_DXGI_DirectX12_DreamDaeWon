@@ -1,0 +1,113 @@
+#include "pch.h"
+#include "UI_Monster.h"
+
+CUI_Monster::CUI_Monster(LPDIRECT3DDEVICE9 pGraphic_Device)
+	:CUI_Base(pGraphic_Device)
+{
+}
+
+CUI_Monster::CUI_Monster(const CUI_Base& rhs)
+	:CUI_Base(rhs)
+{
+}
+
+HRESULT CUI_Monster::Initialize_Prototype()
+{
+	return S_OK;
+}
+
+HRESULT CUI_Monster::Initialize(void* pArg)
+{
+	return S_OK;
+}
+
+_uint CUI_Monster::Tick(_float fTimeDelta)
+{
+	return OBJECT_NOTHING;
+}
+
+void CUI_Monster::Late_Tick(_float fTimeDelta)
+{
+}
+
+HRESULT CUI_Monster::Render()
+{
+	return S_OK;
+}
+
+HRESULT CUI_Monster::Add_Components()
+{
+	/* For.Com_VIBuffer */
+	if (FAILED(__super::Add_Component(LEVEL_STATIC, TEXT("Prototype_Component_VIBuffer_Rect"),
+		TEXT("Com_VIBuffer"), (CComponent**)&m_pVIBufferCom)))
+		return E_FAIL;
+
+
+	/* For.Com_Texture */
+	if (FAILED(__super::Add_Component(LEVEL_GAMEPLAY, TEXT("Prototype_Component_Texture_UI"),
+		TEXT("Com_Texture"), (CComponent**)&m_pTextureCom)))
+		return E_FAIL;
+
+	return S_OK;
+}
+
+HRESULT CUI_Monster::Set_RenderState(_ulong lAphaRef)
+{
+	m_pGraphic_Device->SetSamplerState(0, D3DSAMP_MINFILTER, D3DTEXF_POINT);
+	m_pGraphic_Device->SetSamplerState(0, D3DSAMP_MAGFILTER, D3DTEXF_POINT);
+	m_pGraphic_Device->SetSamplerState(0, D3DSAMP_MIPFILTER, D3DTEXF_POINT);
+	m_pGraphic_Device->SetRenderState(D3DRS_ALPHATESTENABLE, TRUE);
+	m_pGraphic_Device->SetRenderState(D3DRS_ALPHAREF, lAphaRef);
+	m_pGraphic_Device->SetRenderState(D3DRS_ALPHAFUNC, D3DCMP_GREATER);
+
+
+	m_pGraphic_Device->SetRenderState(D3DRS_ZENABLE, FALSE);
+	m_pGraphic_Device->SetRenderState(D3DRS_ZWRITEENABLE, TRUE);
+	return S_OK;
+}
+
+HRESULT CUI_Monster::Reset_RenderState()
+{
+
+	m_pGraphic_Device->SetSamplerState(0, D3DSAMP_MINFILTER, D3DTEXF_LINEAR);
+	m_pGraphic_Device->SetSamplerState(0, D3DSAMP_MAGFILTER, D3DTEXF_LINEAR);
+	m_pGraphic_Device->SetSamplerState(0, D3DSAMP_MIPFILTER, D3DTEXF_LINEAR);
+	m_pGraphic_Device->SetRenderState(D3DRS_ALPHATESTENABLE, FALSE);
+
+	m_pGraphic_Device->SetRenderState(D3DRS_ZENABLE, TRUE);
+	m_pGraphic_Device->SetRenderState(D3DRS_ZWRITEENABLE, TRUE);
+
+	return S_OK;
+}
+
+CUI_Monster* CUI_Monster::Create(LPDIRECT3DDEVICE9 pGraphic_Device)
+{
+	CUI_Monster* pInstance = new CUI_Monster(pGraphic_Device);
+
+	if (FAILED(pInstance->Initialize_Prototype()))
+	{
+		MSG_BOX(TEXT("Failed To Created : CUI_Monster"));
+
+		Safe_Release(pInstance);
+	}
+
+	return pInstance;
+}
+
+CGameObject* CUI_Monster::Clone(void* pArg)
+{
+	CUI_Monster* pInstance = new CUI_Monster(*this);
+
+	if (FAILED(pInstance->Initialize(pArg)))
+	{
+		MSG_BOX(TEXT("Failed To Cloned : CUI_Monster"));
+
+		Safe_Release(pInstance);
+	}
+
+	return pInstance;
+}
+
+void CUI_Monster::Free()
+{
+}

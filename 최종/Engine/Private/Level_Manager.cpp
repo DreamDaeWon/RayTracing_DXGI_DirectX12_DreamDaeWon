@@ -1,0 +1,90 @@
+#include "Level_Manager.h"
+
+#include "GameInstance.h"
+#include "Level.h"
+
+//CLevel_Manager::CLevel_Manager(LPDIRECT3DDEVICE9 pGraphic_Device) :
+//	m_pGraphic_Device(pGraphic_Device)
+//{
+//	Safe_AddRef(pGraphic_Device);
+//}
+
+CLevel_Manager::CLevel_Manager()
+{
+}
+
+HRESULT CLevel_Manager::Initialize()
+{
+	return S_OK;
+}
+
+void CLevel_Manager::Tick(_float fTimeDelta)
+{
+	if (nullptr == m_pCurrentLevel)
+	{
+		MSG_BOX(TEXT("nullptr : m_pCurrentLevel"));
+		return;
+	}
+
+	m_pCurrentLevel->Tick(fTimeDelta);
+}
+
+HRESULT CLevel_Manager::Render()
+{
+	if (nullptr == m_pCurrentLevel)
+	{
+		MSG_BOX(TEXT("nullptr : m_pCurrentLevel"));
+		return E_FAIL;
+	}
+	return m_pCurrentLevel->Render();
+}
+
+_uint CLevel_Manager::Get_Layer()
+{
+	return m_iCurrentLevelID;
+}
+
+HRESULT CLevel_Manager::Open_Level(_uint eNextLevelID, CLevel* pLevel)
+{
+	/* 이전 레벨의 자원을 정리 */
+	if (nullptr != m_pCurrentLevel)
+	{
+		CGameInstance* pGameInstance = CGameInstance::Get_Instance();
+		Safe_AddRef(pGameInstance);
+
+		pGameInstance->Clear(m_iCurrentLevelID);
+
+
+		Safe_Release(pGameInstance);
+		
+	}
+	Safe_Release(m_pCurrentLevel);
+
+	m_iCurrentLevelID = eNextLevelID;
+	m_pCurrentLevel = pLevel;
+
+	return S_OK;
+}
+
+CLevel_Manager* CLevel_Manager::Create()//LPDIRECT3DDEVICE9 pGraphic_Device)
+{
+	CLevel_Manager* pInstance = new CLevel_Manager;
+	if (FAILED(pInstance->Initialize()))
+	{
+		MSG_BOX(TEXT("Failed to Created : CLevel_Manager"));
+
+		Safe_Release(pInstance);
+	}
+
+	return pInstance;
+}
+
+void CLevel_Manager::Free()
+{
+	
+	Safe_Release(m_pCurrentLevel);
+	//Safe_Release(m_CurrentLevel);
+	//Safe_Release(m_pGraphic_Device);
+
+	__super::Free();
+}

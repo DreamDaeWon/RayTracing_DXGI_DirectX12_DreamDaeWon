@@ -1,0 +1,711 @@
+#include "pch.h"
+#include "Camera_Player_DW2.h"
+#include "GameInstance.h"
+#include "AirPlane.h"
+CCamera_Player_DW2::CCamera_Player_DW2(LPDIRECT3DDEVICE9 pGrahpic_Device)
+    : CCamera(pGrahpic_Device)
+{
+
+}
+
+CCamera_Player_DW2::CCamera_Player_DW2(const CCamera_Player_DW2& rhs)
+    : CCamera(rhs)
+{
+
+}
+
+HRESULT CCamera_Player_DW2::Initialize_Prototype()
+{
+    return S_OK;
+}
+
+HRESULT CCamera_Player_DW2::Initialize(void* pArg)
+{
+    if (nullptr != pArg)
+    {
+        CAMERA_PLAYER_DW_DESC2*  Camera_Player_Desc = (CAMERA_PLAYER_DW_DESC2*)pArg;
+        m_pAirPlaneTransform = dynamic_cast<CTransform*>(m_pGameInstance->Get_Component(LEVEL_1945, TEXT("Layer_AirPlane"), g_strTransformTag));
+        m_pAirPlane = Camera_Player_Desc->pAirPlane;
+        Safe_AddRef(m_pAirPlane);
+        Safe_AddRef(m_pAirPlaneTransform);
+    }
+
+    if (FAILED(__super::Initialize(pArg)))
+        return E_FAIL;
+
+    //GetCursorPos(&m_ptMouse);
+
+    // 3인칭 뷰 시점 수정
+    m_f3ViewUp = { 0.f };
+    m_f3ViewBack = { 0.f };
+
+    // 오른쪽 뷰 시점 수정
+    m_fRightViewRight = { 0.06f };
+    m_fRightViewUp = { 0.02f };
+    m_fRightViewBack = { 0.1f };
+
+    return S_OK;
+}
+
+_uint CCamera_Player_DW2::Tick(_float fTimeDelta)
+{
+
+    if (m_eCamera_Mode == CAMERA_QUTER)
+    {
+        m_eCamera_Mode = 0;
+    }
+
+    if (m_pAirPlane->Get_CurState()==CAirPlane::STATE_AIMING)
+    {
+        m_eCamera_Mode = CAMERA_PLAYER_RIGHT_VIEW;
+    }
+    else
+    {
+        m_eCamera_Mode = CAMERA_3VIEW;
+        m_fCamera_Player_Right_Time = 0.f;
+    }
+
+    if (GetKeyState('V') & 0x0001)
+        m_eCamera_Mode = CAMERA_FREE;
+
+    if (m_bMonsterScene)
+    {
+        m_eCamera_Mode = CAMERA_PLAYER_RIGHT_VIEW;
+    }
+
+    if (FAILED(__super::Bind_PipeLines()))
+        return 1;
+
+    return OBJECT_NOTHING;
+}
+
+void CCamera_Player_DW2::Late_Tick(_float fTimeDelta)
+{
+    // 예외처리
+    if (m_eCamera_Mode == CAMERA_FREE)
+    {
+        Camera_Free_Mode(fTimeDelta);
+    }
+    else if (m_eCamera_Mode == CAMERA_1VIEW)
+    {
+        Camera_1View_Mode(fTimeDelta);
+        m_ptMouse = { (_long)(g_iWinSizeX * 0.5), (_long)(g_iWinSizeY * 0.5) };
+        ClientToScreen(g_hWnd, &m_ptMouse);
+        SetCursorPos(m_ptMouse.x, m_ptMouse.y);
+    }
+    else if (m_eCamera_Mode == CAMERA_3VIEW)
+    {
+        Camera_AirPlane_TopView_Mode(fTimeDelta);
+    }
+    else if (m_eCamera_Mode == CAMERA_PLAYER_RIGHT_VIEW)
+    {
+        m_fAirPlaneTopViewTime = 0.f;
+        Camera_Player_Right(fTimeDelta);
+        m_ptMouse = { (_long)(g_iWinSizeX * 0.5), (_long)(g_iWinSizeY * 0.5) };
+        ClientToScreen(g_hWnd, &m_ptMouse);
+        SetCursorPos(m_ptMouse.x, m_ptMouse.y);
+    }
+    if (m_bShake)
+    {
+        Camera_Shaking(fTimeDelta);
+    }
+    if (m_bMonsterScene)
+    {
+
+        m_eCamera_Mode = CAMERA_PLAYER_RIGHT_VIEW;
+        m_pAirPlane->SetCutScene(true);
+        Camera_Monster_Scene(fTimeDelta);
+    }
+    else
+    {
+        m_eCamera_Mode = CAMERA_3VIEW;
+    }
+}
+
+void CCamera_Player_DW2::Camera_Free_Mode(_float fTimeDelta)
+{
+    ShowCursor(true); // DW질문 : 동작 속도가 많이 느린가?
+
+
+    if (GetKeyState(VK_UP) & 0x8000)
+        m_pTransform->Go_Straight(fTimeDelta);
+    if (GetKeyState(VK_DOWN) & 0x8000)
+        m_pTransform->Go_Backward(fTimeDelta);
+    if (GetKeyState(VK_LEFT) & 0x8000)
+        m_pTransform->Go_Left(fTimeDelta);
+    if (GetKeyState(VK_RIGHT) & 0x8000)
+        m_pTransform->Go_Right(fTimeDelta);
+
+
+
+
+    if (FAILED(__super::Bind_PipeLines()))
+        return;
+
+}
+
+void CCamera_Player_DW2::Camera_AirPlane_TopView_Mode(_float fTimeDelta)
+{
+    m_fAirPlane3ViewTime = 0.f;
+    m_fCamera_Player_Right_Time = 0.f;
+    m_fAngle = 0.f;
+
+
+    if (m_bAirPlaneTopViewFirst)
+    {
+        m_fAirPlane3ViewTime = 100.f;
+        m_pTransform->Set_State(CTransform::STATE_POSITION, m_vAirPlaneTopViewPos);
+        m_bAirPlaneTopViewFirst = false;
+    }
+
+
+    // 처음에 시작할 때 각도를 0으로 만들어주기
+    if (m_fAirPlaneTopViewTime == 0.f)
+    {
+
+        // 외적 후 Up벡터 010으로 만들고 나머지 그에 맞게 수정
+        _float3 vLook = { m_pTransform->Get_State(CTransform::STATE_LOOK) };
+        _float3 vRight = { m_pTransform->Get_State(CTransform::STATE_RIGHT) };
+        D3DXVec3Cross(&vLook, &vRight, &_float3(0.f, 1.f, 0.f));
+        D3DXVec3Cross(&vRight, &_float3(0.f, 1.f, 0.f), &vLook);
+
+        m_pTransform->Set_State(CTransform::STATE_LOOK, vLook);
+        m_pTransform->Set_State(CTransform::STATE_RIGHT, vRight);
+        m_pTransform->Set_State(CTransform::STATE_UP, _float3(0.f, 1.f, 0.f));
+
+        m_vMoveAirPlanePos = m_pTransform->Get_State(CTransform::STATE_POSITION); // 바꾸는 그 순간에 카메라 위치
+        m_vMoveAirPlanePos = m_vAirPlaneTopViewPos - m_vMoveAirPlanePos; // 이동해야 하는 값 계산
+
+        m_vAirPlaneBeforePos = m_pTransform->Get_State(CTransform::STATE_POSITION);
+
+        //이전 룩벡터와 라이트 벡터를 넣어 줌
+        m_vBeforeLook = m_pTransform->Get_State(CTransform::STATE_LOOK);
+        m_vBeforeRight = m_pTransform->Get_State(CTransform::STATE_RIGHT);
+
+        // 그후 돌려야 하는 각도를 구한다.
+        m_fAirPlaneTopAngle = D3DXVec3Dot(&m_vBeforeLook, &_float3(1.f, 0.f, 0.f));
+        if (m_fAirPlaneTopAngle >= 0.f) // 이게 양수면 오른쪽으로 돌려야 함
+        {
+            m_fAirPlaneTopAngle = D3DXVec3Dot(&m_vBeforeLook, &_float3(0.f, 0.f, 1.f));
+            m_fAirPlaneTopAngle = acosf(m_fAirPlaneTopAngle);
+            m_fAirPlaneTopAngle = -D3DXToDegree(m_fAirPlaneTopAngle);
+
+            //m_fAirPlaneTop_UpAngle = D3DXVec3Dot(&vLook, &_float3(1.f, 0.f, 0.f))
+        }
+        else if (m_fAirPlaneTopAngle < 0.f) // 이게 음수면 왼쪽으로 돌려야 함
+        {
+            m_fAirPlaneTopAngle = D3DXVec3Dot(&m_vBeforeLook, &_float3(0.f, 0.f, 1.f));
+            m_fAirPlaneTopAngle = acosf(m_fAirPlaneTopAngle);
+            m_fAirPlaneTopAngle = (D3DXToDegree(m_fAirPlaneTopAngle));
+        }
+
+    }
+
+    // 카메라의 위치를 축에따라서 플레이어 뒤쪽으로 이동
+    if (m_fAirPlaneTopViewTime < m_fMoveTopViewTime) // 서서히 이동
+    {
+        m_bCanShotBullet = false;
+        m_fAirPlaneTopViewTime += fTimeDelta; // 매초 더하기
+
+        // 기존 룩업라이트 벡터와 위치를 넣어 줌
+        m_pTransform->Set_State(CTransform::STATE_POSITION, m_vAirPlaneBeforePos);
+        m_pTransform->Set_State(CTransform::STATE_LOOK, m_vBeforeLook);
+        m_pTransform->Set_State(CTransform::STATE_RIGHT, m_vBeforeRight);
+        m_pTransform->Set_State(CTransform::STATE_UP, _float3(0.f, 1.f, 0.f));
+
+
+        // 각도를 돌리기
+        if (abs(m_fAirPlaneTopAngle * m_fAirPlaneTopViewTime / m_fMoveTopViewTime) > abs(m_fAirPlaneTopAngle))
+        {
+            m_pTransform->Turn(_float3(0.f, 1.f, 0.f), D3DXToRadian(m_fAirPlaneTopAngle));
+        }
+        else
+        {
+            m_pTransform->Turn(_float3(0.f, 1.f, 0.f), D3DXToRadian(m_fAirPlaneTopAngle * m_fAirPlaneTopViewTime / m_fMoveTopViewTime));
+        }
+
+        if ((m_fAirPlaneTop_UpAngle * m_fAirPlaneTopViewTime / m_fMoveTopViewTime) > 90.f) // 57 도 고정 이유는 모르겠음
+        {
+            m_pTransform->Turn(m_pTransform->Get_State(CTransform::STATE_RIGHT), D3DXToRadian(90.f));
+        }
+        else
+        {
+            m_pTransform->Turn(m_pTransform->Get_State(CTransform::STATE_RIGHT), D3DXToRadian(m_fAirPlaneTop_UpAngle * m_fAirPlaneTopViewTime / m_fMoveTopViewTime));
+        }
+
+        // 위치 이동
+
+        m_pTransform->Set_State(CTransform::STATE_POSITION, _float3((m_vAirPlaneBeforePos.x + (m_vMoveAirPlanePos.x * m_fAirPlaneTopViewTime / m_fMoveTopViewTime)),
+            (m_vAirPlaneBeforePos.y + (m_vMoveAirPlanePos.y * m_fAirPlaneTopViewTime / m_fMoveTopViewTime)),
+            (m_vAirPlaneBeforePos.z + (m_vMoveAirPlanePos.z * m_fAirPlaneTopViewTime / m_fMoveTopViewTime))));
+    }
+    else
+    {
+        m_bCanShotBullet = true;
+        m_pTransform->Set_State(CTransform::STATE_LOOK, _float3(0.f, -1.f, 0.f));
+        m_pTransform->Set_State(CTransform::STATE_RIGHT, _float3(1.f, 0.f, 0.f));
+        m_pTransform->Set_State(CTransform::STATE_UP, _float3(0.f, 0.f, 1.f));
+    }
+
+    if (FAILED(__super::Bind_PipeLines()))
+        return;
+
+}
+
+void CCamera_Player_DW2::Camera_3View_Mode(_float fTimeDelta)
+{
+    m_fCamera_Player_Right_Time = 0.f;
+    m_fAngle = 0.f;
+    m_pTransform->Set_State(CTransform::STATE_POSITION, m_pAirPlaneTransform->Get_State(CTransform::STATE_POSITION));
+
+    // 카메라가 이전 상태처럼 아래로 치우치면 안되기 때문에 Look와 Right를 010벡터와 외적하여 다시계산
+    // 이 때 플레이어에게 고정시키면 안돌아감 카메라에 따라서 플레이어가 돌아가기 때문에
+    _float3 vCameraLook = { m_pTransform->Get_State(CTransform::STATE_LOOK) };
+    _float3 vCameraRight = { m_pTransform->Get_State(CTransform::STATE_RIGHT) };
+    D3DXVec3Cross(&vCameraLook, &vCameraRight, &_float3(0.f, 1.f, 0.f));
+    D3DXVec3Cross(&vCameraRight, &_float3(0.f, 1.f, 0.f), &vCameraLook);
+
+    m_pTransform->Set_State(CTransform::STATE_UP, m_pAirPlaneTransform->Get_State(CTransform::STATE_UP));
+    m_pTransform->Set_State(CTransform::STATE_LOOK, vCameraLook);
+    m_pTransform->Set_State(CTransform::STATE_RIGHT, vCameraRight);
+
+    /* 스크린 기준의 마우스 위치를 얻어온다. */
+    //GetCursorPos(&ptMouse);
+
+
+    /* 왼쪽으로 움직이면 -, 오른쪽으로 움짖ㄱ였다 + */
+    /*_long MouseMoveX = ptMouse.x - m_ptMouse.x;
+
+    if (0 != MouseMoveX)
+    {
+        m_pTransform->Turn(m_pPlayerTransform->Get_State(CTransform::STATE_UP), fTimeDelta * MouseMoveX * m_fMouseSensor);
+    }*/
+
+
+    // 카메라의 위치를 축에따라서 플레이어 뒤쪽으로 이동
+    if (m_fCamera_Change_Time < 1.f) // 서서히 이동
+    {
+        m_fCamera_Change_Time += 0.05f;
+    }
+
+    m_pTransform->Go_Backward(m_fCamera_Change_Time);
+    m_pTransform->Go_Up(0.5f * m_fCamera_Change_Time);
+
+    // 카메라가 플레이어를 보게 만들기
+    m_pTransform->LookAt(m_pAirPlaneTransform->Get_State(CTransform::STATE_POSITION));
+
+    // 플레이어는 카메라의 룩벡터 방향을 보지만 아래로 치우치면 안되기 때문에 Look와 Right를 010벡터와 외적하여 다시계산
+    _float3 vLook = { m_pTransform->Get_State(CTransform::STATE_LOOK) };
+    _float3 vRight = { m_pTransform->Get_State(CTransform::STATE_RIGHT) };
+    D3DXVec3Cross(&vLook, &vRight, &_float3(0.f, 1.f, 0.f));
+    D3DXVec3Cross(&vRight, &_float3(0.f, 1.f, 0.f), &vLook);
+
+
+    //m_pPlayerTransform->Set_State(CTransform::STATE_LOOK, vLook);
+    //m_pPlayerTransform->Set_State(CTransform::STATE_UP, _float3(0.f, 1.f, 0.f));
+    //m_pPlayerTransform->Set_State(CTransform::STATE_RIGHT, vRight);
+    if (FAILED(__super::Bind_PipeLines()))
+        return;
+
+   /* ptMouse = { (long)(g_iWinSizeX * 0.5),(long)(g_iWinSizeY * 0.5) };
+
+    ClientToScreen(g_hWnd, &ptMouse);
+    SetCursorPos(ptMouse.x, ptMouse.y);
+
+    m_ptMouse = ptMouse;*/
+}
+
+void CCamera_Player_DW2::Camera_1View_Mode(_float fTimeDelta)
+{
+    ShowCursor(false);
+    m_pTransform->Set_State(CTransform::STATE_POSITION, m_pAirPlaneTransform->Get_State(CTransform::STATE_POSITION));
+
+    // 카메라가 이전 상태처럼 아래로 치우치면 안되기 때문에 Look와 Right를 010벡터와 외적하여 다시계산
+    // 이 때 플레이어에게 고정시키면 안돌아감 카메라에 따라서 플레이어가 돌아가기 때문에
+    _float3 vCameraLook = { m_pTransform->Get_State(CTransform::STATE_LOOK) };
+    _float3 vCameraRight = { m_pTransform->Get_State(CTransform::STATE_RIGHT) };
+    D3DXVec3Cross(&vCameraLook, &vCameraRight, &_float3(0.f, 1.f, 0.f));
+    D3DXVec3Cross(&vCameraRight, &_float3(0.f, 1.f, 0.f), &vCameraLook);
+
+    m_pTransform->Set_State(CTransform::STATE_UP, m_pAirPlaneTransform->Get_State(CTransform::STATE_UP));
+    m_pTransform->Set_State(CTransform::STATE_LOOK, vCameraLook);
+    m_pTransform->Set_State(CTransform::STATE_RIGHT, vCameraRight);
+
+    m_pAirPlaneTransform->Set_State(CTransform::STATE_LOOK, m_pTransform->Get_State(CTransform::STATE_LOOK));
+    m_pAirPlaneTransform->Set_State(CTransform::STATE_RIGHT, m_pTransform->Get_State(CTransform::STATE_RIGHT));
+
+    if (FAILED(__super::Bind_PipeLines()))
+        return;
+}
+
+void CCamera_Player_DW2::Camera_Quter_Mode(_float fTimeDelta)
+{
+
+}
+
+void CCamera_Player_DW2::Camera_Player_Right(_float fTimeDelta)
+{
+
+    m_fCamera_Change_Time = 0.f;
+
+    m_pTransform->Set_State(CTransform::STATE_POSITION, m_pAirPlaneTransform->Get_State(CTransform::STATE_POSITION));
+    CAirPlane* pPlayerObject = dynamic_cast<CAirPlane*>(m_pGameInstance->Get_Object(LEVEL_1945, TEXT("Layer_AirPlane")));
+
+    _float3 vCameraLook = { m_pTransform->Get_State(CTransform::STATE_LOOK) };
+    _float3 vCameraRight = { m_pTransform->Get_State(CTransform::STATE_RIGHT) };
+    D3DXVec3Cross(&vCameraLook, &vCameraRight, &_float3(0.f, 1.f, 0.f));
+    D3DXVec3Cross(&vCameraRight, &_float3(0.f, 1.f, 0.f), &vCameraLook);
+
+
+    if (m_fCamera_Player_Right_Time == 0.f)
+    {
+        _float3 vMouse = pPlayerObject->Get_MousePos(); // 마우스 위치를 가져 옴
+
+        // 마우스 위치에서 현재 카메라의 위치를 빼서 방향벡터를 구함
+   
+
+         vMouse = (vMouse - m_pTransform->Get_State(CTransform::STATE_POSITION)); 
+       
+        D3DXVec3Normalize(&vMouse, &vMouse); // 내적하기 위해 정규화
+
+
+        m_pTransform->Set_State(CTransform::STATE_UP, _float3(0.f, 1.f, 0.f));
+        m_vBeforeLook = m_pTransform->Get_State(CTransform::STATE_LOOK); // 들어왔을 때의 룩벡터 저장
+        m_vBeforeRight = m_pTransform->Get_State(CTransform::STATE_RIGHT); // 들어왔을 때의 라이트 벡터 저장
+
+        D3DXVec3Normalize(&m_vBeforeLook, &m_vBeforeLook);
+        D3DXVec3Normalize(&m_vBeforeRight, &m_vBeforeRight);
+
+        D3DXVec3Cross(&m_vBeforeLook, &m_vBeforeRight, &_float3(0.f, 1.f, 0.f)); //
+        D3DXVec3Cross(&m_vBeforeRight, &_float3(0.f, 1.f, 0.f), &m_vBeforeLook);
+
+        D3DXVec3Normalize(&m_vBeforeLook, &m_vBeforeLook);
+        D3DXVec3Normalize(&m_vBeforeRight, &m_vBeforeRight);
+
+        // Right 벡터와 내적후 양수면 오른쪽 음수면 왼쪽으로 돌아야 한다.
+        if (D3DXVec3Dot(&m_vBeforeRight, &vMouse) >= 0.f)
+        {
+            m_fAngle = D3DXVec3Dot(&m_vBeforeLook, &vMouse);
+            if (m_fAngle >= 1.f)
+                m_fAngle = 1.f;
+            else if (m_fAngle <= -1.f)
+                m_fAngle = -1.f;
+            m_fAngle = acosf(m_fAngle);
+            m_fAngle = D3DXToDegree(m_fAngle);
+            if (D3DXVec3Dot(&m_vBeforeLook, &vMouse) >= 0.f) // 이게 양수면 그냥 돌면 된다.
+            {
+
+            }
+            else
+            {
+                m_fAngle = m_fAngle;
+                
+            }
+        }
+        else // 왼쪽
+        {
+            m_fAngle = D3DXVec3Dot(&m_vBeforeLook, &vMouse);
+            if (m_fAngle >= 1.f)
+                m_fAngle = 1.f;
+            else if (m_fAngle <= -1.f)
+                m_fAngle = -1.f;
+            m_fAngle = acosf(m_fAngle);
+            m_fAngle = D3DXToDegree(m_fAngle);
+            if (D3DXVec3Dot(&m_vBeforeLook, &vMouse) >= 0.f) // 이게 양수면 그냥 돌면 된다.
+            {
+               // m_fAngle += m_fAngle * 0.3f;
+            }
+            else
+            {
+                //m_fAngle += m_fAngle * 0.2f;
+            }
+            m_fAngle += m_fAngle * 0.2f;
+            m_fAngle = -m_fAngle;
+        }
+      
+    }
+
+    if (m_fCamera_Player_Right_Time < m_fMove3ViewTime) // 서서히 이동
+    {
+        m_bCanShotBullet = false;
+        // 플레이어 위치로 이동시키기
+        m_pTransform->Set_State(CTransform::STATE_POSITION, m_pAirPlaneTransform->Get_State(CTransform::STATE_POSITION));
+        m_vMoveAirPlanePos = m_pAirPlaneTransform->Get_State(CTransform::STATE_POSITION);
+        m_vMoveAirPlanePos = m_vAirPlaneTopViewPos - (m_vMoveAirPlanePos + m_vAirPlane3ViewPos); // Top 뷰 - 3카메라 위치
+
+        // 서서히 이동 할 때는 정면을 보도록 설정
+        // 위치랑 축들 다시 돌리고
+       
+        m_pTransform->Set_State(CTransform::STATE_UP, _float3(0.f, 0.f, 1.f));
+        m_pTransform->Set_State(CTransform::STATE_LOOK, _float3(0.f, -1.f, 0.f));
+        m_pTransform->Set_State(CTransform::STATE_RIGHT, _float3(1.f, 0.f, 0.f));
+
+
+        // 돌리고
+        m_pTransform->Turn(_float3(1.f, 0.f, 0.f), D3DXToRadian(-90.f * m_fCamera_Player_Right_Time / m_fMove3ViewTime)); // 돌기
+
+       // m_pTransform->Go_Right(m_vAirPlaneTopViewPos.x - (m_vMoveAirPlanePos.x * m_fCamera_Player_Right_Time / m_fMove3ViewTime));
+        //m_pTransform->Go_Up(m_vAirPlane3ViewPos.y - (m_vMoveAirPlanePos.y - (m_vMoveAirPlanePos.y * m_fCamera_Player_Right_Time / m_fMove3ViewTime)));
+        //m_pTransform->Go_Backward(m_vAirPlane3ViewPos.z - (m_vMoveAirPlanePos.z - (m_vMoveAirPlanePos.z * m_fCamera_Player_Right_Time / m_fMove3ViewTime)));
+
+
+        m_pTransform->Set_State(CTransform::STATE_POSITION, _float3((m_vAirPlaneTopViewPos.x - (m_vMoveAirPlanePos.x * m_fCamera_Player_Right_Time / m_fMove3ViewTime)),
+            (m_vAirPlaneTopViewPos.y - (m_vMoveAirPlanePos.y * m_fCamera_Player_Right_Time / m_fMove3ViewTime)),
+          (m_vAirPlaneTopViewPos.z - (m_vMoveAirPlanePos.z * m_fCamera_Player_Right_Time / m_fMove3ViewTime))));
+
+        m_fCamera_Player_Right_Time += fTimeDelta;
+    }
+    else
+    {
+        m_bCanShotBullet = true;
+       _float3 vPlayerPos = m_pAirPlaneTransform->Get_State(CTransform::STATE_POSITION);
+       m_vMoveAirPlanePos = vPlayerPos + m_vAirPlane3ViewPos;
+
+       m_pTransform->Set_State(CTransform::STATE_POSITION, vPlayerPos);
+
+      /*  m_pAirPlaneTransform->Set_State(CTransform::STATE_UP, _float3(0.f, 1.f, 0.f));
+        m_pAirPlaneTransform->Set_State(CTransform::STATE_LOOK, _float3(0.f, 0.f, 1.f));
+        m_pAirPlaneTransform->Set_State(CTransform::STATE_RIGHT, _float3(1.f, 0.f, 0.f));*/
+       
+
+     //   m_vMoveAirPlanePos = m_pAirPlaneTransform->Get_State(CTransform::STATE_POSITION);
+     //   m_vMoveAirPlanePos = m_vAirPlaneTopViewPos - (m_vMoveAirPlanePos + m_vAirPlane3ViewPos); // Top 뷰 - 플레이어 위치
+     ///*   m_pTransform->Set_State(CTransform::STATE_POSITION, _float3(m_vAirPlaneTopViewPos.x - (m_vMoveAirPlanePos.x * m_fCamera_Player_Right_Time / m_fMove3ViewTime),
+     //       m_vAirPlaneTopViewPos.y - (m_vMoveAirPlanePos.y * m_fCamera_Player_Right_Time / m_fMove3ViewTime),
+     //       m_vAirPlaneTopViewPos.z - (m_vMoveAirPlanePos.z * m_fCamera_Player_Right_Time / m_fMove3ViewTime)));*/
+
+        m_pTransform->Go_Right(m_vAirPlane3ViewPos.x);
+        m_pTransform->Go_Up(m_vAirPlane3ViewPos.y);
+        m_pTransform->Go_Straight(m_vAirPlane3ViewPos.z);
+    }
+
+   if (FAILED(__super::Bind_PipeLines()))
+       return;
+
+
+}
+
+void CCamera_Player_DW2::Camera_Shaking(_float fTimeDelta)
+{
+
+    m_pTransform->Set_State(CTransform::STATE_POSITION, _float3(m_pTransform->Get_State(CTransform::STATE_POSITION).x + m_fShakeSize,
+        m_pTransform->Get_State(CTransform::STATE_POSITION).y + m_fShakeSize,
+        m_pTransform->Get_State(CTransform::STATE_POSITION).z));
+    m_fShakeSize = m_fShakeSize *   (-1.f);
+    if (FAILED(__super::Bind_PipeLines()))
+        return;
+}
+
+void CCamera_Player_DW2::Camera_Monster_Scene(_float fTimeDelta)
+{
+    //switch (m_eMonsterScene)
+    //{
+    //case SCENE_RIGHT_VIEW:
+    //    m_eMonsterScene = SCENE_LOOK_AT_MONSTER;
+    //    m_eMonsterScene = SCENE_MONSTER_SPON;
+    //    // 오른쪽으로 이동
+    //    if (m_fMonsterSceneTime < m_fMove3ViewTime)
+    //    {
+    //        m_eCamera_Mode = CAMERA_PLAYER_RIGHT_VIEW;
+    //        m_fMonsterSceneTime += fTimeDelta;
+    //    }
+    //    else
+    //    {
+    //        m_eCamera_Mode = CAMERA_FREE;
+    //        m_fMonsterSceneTime = 0.f;
+    //        m_eMonsterScene = SCENE_MOVE;
+    //    }
+    //    break;
+    //case SCENE_MOVE:
+    //    if (m_fMonsterSceneTime == 0.f) // 처음 들어왔을 때
+    //    {
+    //        m_vMoveMonsterScenePos = m_pAirPlaneTransform->Get_State(CTransform::STATE_POSITION) + m_vMonsterScenePos;
+    //        m_vMoveMonsterScenePos = m_pTransform->Get_State(CTransform::STATE_POSITION) - m_vMoveMonsterScenePos;
+    //        m_fLookMonsterAngle = You_Want_Look_TurnAngle(_float3(0.f, 0.f, 1.f));
+    //    }
+
+    //    if (m_fMonsterSceneTime < 2.f) // 2초동안 이동
+    //    {
+    //        m_pTransform->Set_State(CTransform::STATE_POSITION, _float3(m_pTransform->Get_State(CTransform::STATE_POSITION).x + m_vMoveMonsterScenePos.x * m_fMonsterSceneTime / 2.f,
+    //            m_pTransform->Get_State(CTransform::STATE_POSITION).y + m_vMoveMonsterScenePos.y * m_fMonsterSceneTime / 2.f,
+    //            m_pTransform->Get_State(CTransform::STATE_POSITION).z + m_vMoveMonsterScenePos.z * m_fMonsterSceneTime / 2.f));
+    //        m_pTransform->Turn(_float3(0.f, 1.f, 0.f), D3DXToRadian(m_fLookMonsterAngle * fTimeDelta / 2.f));
+    //        m_fMonsterSceneTime += fTimeDelta;
+    //    }
+    //    else
+    //    {
+    //        m_fMonsterSceneTime = 0.f;
+    //        m_eMonsterScene = SCENE_MONSTER_SPON;
+    //    }
+
+    //    break;
+    //case SCENE_MONSTER_SPON:
+    //    if (m_fMonsterSceneTime == 0.f) // 처음 들어왔을 때
+    //    {
+    //        // 보스 위치 구해오기
+    //        _float3 vBossPos = dynamic_cast<CTransform*>(m_pGameInstance->Get_Component(LEVEL_1945, TEXT("Layer_Boss"), TEXT("Com_Transform")))->Get_State(CTransform::STATE_POSITION);
+    //        // 돌아야 하는 각도 구하기
+    //        m_fLookMonsterAngle = You_Want_Look_TurnAngle(vBossPos);
+
+    //        // 위나 아래로는 얼마나 돌아야 하는지?
+    //        m_fLookMonsterUpAngle = You_Want_Look_TurnUpAngle(vBossPos);
+    //    }
+    //    
+    //    if (m_fMonsterSceneTime < 2.f)
+    //    {
+    //        // 좌우로 돌리기
+    //        m_pTransform->Turn(_float3(0.f, 1.f, 0.f), m_fLookMonsterAngle * m_fMonsterSceneTime / 2.f);
+
+    //        // 위나 아래로 돌리기
+    //        m_pTransform->Turn(m_pTransform->Get_State(CTransform::STATE_RIGHT), m_fLookMonsterUpAngle * m_fMonsterSceneTime / 2.f);
+    //        m_fMonsterSceneTime += fTimeDelta;
+    //    }
+    //    else
+    //    {
+    //        m_fMonsterSceneTime = 0.f;
+    //        m_eMonsterScene = SCENE_LOOK_AT_MONSTER;
+    //    }
+
+    //    break;
+    //case SCENE_READY:
+
+    //    break;
+    //case SCENE_LOOK_AT_MONSTER:
+    //    if (m_fMonsterSceneTime < 5.f) // 쳐다보기
+    //    {
+         m_pTransform->LookAt(dynamic_cast<CTransform*>(m_pGameInstance->Get_Component(LEVEL_1945, TEXT("Layer_Boss"), TEXT("Com_Transform")))->Get_State(CTransform::STATE_POSITION));
+    //    }
+    //    else
+    //    {
+    //        m_fMonsterSceneTime = 0.f;
+    //        m_eCamera_Mode = CAMERA_3VIEW;
+    //        m_eMonsterScene = SCENE_RIGHT_VIEW;
+    //        m_bMonsterScene = false;
+    //    }
+    //    break;
+    //case SCENE_END:
+
+    //    break;
+    //default:
+    //    break;
+    //}
+}
+
+_float CCamera_Player_DW2::You_Want_Look_TurnAngle(_float3 _TargetLook)
+{
+    _float3 vRight = *D3DXVec3Normalize(&vRight, &m_pTransform->Get_State(CTransform::STATE_RIGHT));
+    _float3 vLook = *D3DXVec3Normalize(&vLook,&m_pTransform->Get_State(CTransform::STATE_LOOK));
+    
+    _float3 vTargetLook = *D3DXVec3Normalize(&vTargetLook, &_TargetLook);
+
+    m_fLookMonsterAngle = D3DXVec3Dot(&vTargetLook, &vLook);
+    m_fLookMonsterAngle = acosf(m_fLookMonsterAngle);
+    m_fLookMonsterAngle = D3DXToDegree(m_fLookMonsterAngle);
+
+    if (D3DXVec3Dot(&vRight, &vTargetLook) >= 0.f) // 양수
+    {
+        m_fLookMonsterAngle = m_fLookMonsterAngle;
+    }
+    else // 음수
+    {
+        m_fLookMonsterAngle = -m_fLookMonsterAngle;
+    }
+
+    return m_fLookMonsterAngle;
+}
+
+_float CCamera_Player_DW2::You_Want_Look_TurnUpAngle(_float3 _TargetLook)
+{
+    _float3 vUp = *D3DXVec3Normalize(&vUp, &m_pTransform->Get_State(CTransform::STATE_UP));
+    _float3 vLook = *D3DXVec3Normalize(&vLook, &m_pTransform->Get_State(CTransform::STATE_LOOK));
+
+    _float3 vTargetLook = *D3DXVec3Normalize(&vTargetLook, &_TargetLook);
+
+    m_fLookMonsterUpAngle = D3DXVec3Dot(&vTargetLook, &vLook);
+    m_fLookMonsterUpAngle = acosf(m_fLookMonsterUpAngle);
+    m_fLookMonsterUpAngle = D3DXToDegree(m_fLookMonsterUpAngle);
+
+    if (D3DXVec3Dot(&vUp, &vTargetLook) >= 0.f) // 양수
+    {
+        m_fLookMonsterUpAngle = -m_fLookMonsterUpAngle;
+    }
+    else // 음수
+    {
+        m_fLookMonsterUpAngle = m_fLookMonsterUpAngle;
+    }
+
+    return m_fLookMonsterUpAngle;
+}
+
+
+_float CCamera_Player_DW2::The_angle_at_which_you_turn_in_the_direction_you_want(_float3 _TargetLook)
+{
+   // _float3 m_
+
+   return _float();
+}
+
+void CCamera_Player_DW2::Wall_Collision()
+{
+    _float3 vRayPos = m_pAirPlaneTransform->Get_State(CTransform::STATE_POSITION);
+    _float3 vRayDir = m_pTransform->Get_State(CTransform::STATE_POSITION) - vRayPos;
+    _float fLength = D3DXVec3Length(&vRayDir);
+    D3DXVec3Normalize(&vRayDir, &vRayDir);
+
+    list<CGameObject*>* pWallList = m_pGameInstance->Get_List(g_eLevel, TEXT("Layer_Wall"));
+    if (nullptr == pWallList)
+        return;
+
+    _float fMinDist(1000.f); //큰 값으로 초기화
+    for (auto& iter : *pWallList)//Wall List 전부를 순회하면서 충돌을 판단한다.
+    {
+        CCollider_Rect* pCollider_Rect = dynamic_cast<CCollider_Rect*>(iter->Get_Component(TEXT("Com_Collider_Rect")));
+        if (nullptr == pCollider_Rect)
+            continue;
+        _float fDist(1000.f);
+        if (m_pGameInstance->Collision_Rect_Ray_Same_Space(pCollider_Rect, vRayDir, vRayPos, fLength, &fDist)) //충돌이 일어났을 때
+        {
+            if (fMinDist > fDist) //
+            {
+                fMinDist = fDist;
+                m_pTransform->Set_State(CTransform::STATE_POSITION, vRayPos + vRayDir * (fMinDist - 1.f));
+                __super::Bind_PipeLines();
+            }
+        }
+    }
+}
+
+CCamera_Player_DW2* CCamera_Player_DW2::Create(LPDIRECT3DDEVICE9 pGraphic_Device)
+{
+    CCamera_Player_DW2* pInstance = new CCamera_Player_DW2(pGraphic_Device);
+
+    if (FAILED(pInstance->Initialize_Prototype()))
+    {
+        MSG_BOX(TEXT("Failed To Created : CCamera_Player_DW2"));
+
+        Safe_Release(pInstance);
+    }
+
+    return pInstance;
+}
+
+CGameObject* CCamera_Player_DW2::Clone(void* pArg)
+{
+    CCamera_Player_DW2* pInstance = new CCamera_Player_DW2(*this);
+
+    if (FAILED(pInstance->Initialize(pArg)))
+    {
+        MSG_BOX(TEXT("Failed To Cloned : CCamera_Player_DW2"));
+
+        Safe_Release(pInstance);
+    }
+
+    return pInstance;
+}
+
+void CCamera_Player_DW2::Free()
+{
+    Safe_Release(m_pAirPlaneTransform);
+    Safe_Release(m_pAirPlane);
+    __super::Free();
+}

@@ -1,0 +1,85 @@
+#pragma once
+#include "GameObject.h"
+#include "Client_Defines.h"
+
+
+BEGIN(Engine)
+class CVIBuffer_Wall;
+class CCollider_Rect;
+class CTexture;
+END
+
+BEGIN(Client)
+
+class CWall final : public CGameObject
+{
+public:
+	typedef struct tagWall_DESC : public CGameObject::GAMEOBJECT_DESC
+	{
+		wstring strVIBufferTag; // ★테그★
+		_float4x4 WorldMatrix;
+		_uint	iFrame;
+		_uint iLevel;
+	} WALL_DESC;
+
+	const _float4x4* Get_WorldMatrix()
+	{
+		return m_pTransform->Get_WorldMatrix();
+	}
+
+	_float3 Get_Position()
+	{
+		return m_pTransform->Get_State(CTransform::STATE_POSITION);
+	}
+private:
+	CWall(LPDIRECT3DDEVICE9 pGraphic_Device);
+	CWall(const CWall& rhs);
+	virtual ~CWall() = default;
+
+public:
+	virtual HRESULT Initialize_Prototype() override;
+	virtual HRESULT Initialize(void* pArg) override;
+	virtual _uint Tick(_float fTimeDelta) override;
+	virtual void Late_Tick(_float fTimeDelta) override;
+	virtual HRESULT Render() override;
+
+
+public:
+	//void WallTurn(_float _Angle);
+	void Set_Tick(_bool bTick) { m_bTick = bTick; }
+	//TODO:용수 총알충돌처리 테스트
+	void Collision_Bullet(_float fTimeDelta);
+	void Collision_Monster_Bullet(_float fTimeDelta);
+
+private:
+	HRESULT Add_Components(const wstring& strVIBufferTag);
+	HRESULT Add_Components(const wstring& strVIBufferTag, _uint iLevel);
+	HRESULT Set_RenderState();
+	HRESULT Reset_RenderState();
+
+	void Landing_Object(const wstring& strObjectLayerTag);
+	void Setting_Collider_Info();
+
+
+private:
+	CTexture* m_pTextureCom = { nullptr };
+	CVIBuffer_Wall* m_pVIBuffer_Com = { nullptr };
+	//collider
+	CCollider_Rect* m_pCollider_Com = { nullptr };
+	CTexture* m_pTextureCollider = { nullptr };
+
+	wstring			m_strVIBufferTag;
+	_uint			m_iFrame = { 0 };
+	_float			m_fFrame = { 0.f };
+	//CVIBuffer_Rect* m_pVIBuffer_Com = { nullptr };
+private:
+	_float m_fAngle = { 0.f };
+	_bool m_bTick = { false };
+	_float m_fY = { -10.f };
+public:
+	static CWall* Create(LPDIRECT3DDEVICE9 pGraphic_Device);
+	virtual CGameObject* Clone(void* pArg) override;
+	virtual void Free() override;
+};
+
+END

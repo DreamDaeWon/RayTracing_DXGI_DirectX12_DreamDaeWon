@@ -1,0 +1,250 @@
+#include "pch.h"
+#include "Bullet.h"
+#include "GameInstance.h"
+#include "TrailRenderer.h"
+
+CBullet::CBullet(LPDIRECT3DDEVICE9 pGraphic_Device) :
+	CGameObject(pGraphic_Device)
+{
+}
+
+CBullet::CBullet(const CBullet& rhs) :
+	CGameObject(rhs),
+	m_fFrame(rhs.m_fFrame)
+{
+}
+
+HRESULT CBullet::Initialize_Prototype()
+{
+	return S_OK;
+}
+
+HRESULT CBullet::Initialize(void* pArg)
+{
+	if (FAILED(__super::Initialize(pArg)))
+	{
+		MSG_BOX(TEXT("Failed to Initialize : CBullet"));
+		return E_FAIL;
+	}
+
+	/*if (nullptr != pArg)
+	{
+		BULLET_DESC* pBulletDesc = (BULLET_DESC*)pArg;
+		m_fCP = pBulletDesc->fCP;
+	}*/
+
+	if (FAILED(Add_Components()))
+	{
+		MSG_BOX(TEXT("Failed to Add_Components ,CBullet"));
+		return E_FAIL;
+	}
+	m_vecTrailRenderer.reserve(TRAILMAXNUM);
+	for (size_t i = 0; i < TRAILMAXNUM; i++)
+	{
+		if (FAILED(m_pGameInstance->Add_Clone(LEVEL_STATIC, TEXT("Layer_TrailRenderer"), TEXT("Prototype_GameObject_TrailRenderer"))))
+		{
+			MSG_BOX(TEXT("Failed to Add_Components ,CBullet"));
+			return E_FAIL;
+		}
+		list<CGameObject*>* pList = m_pGameInstance->Get_List(LEVEL_STATIC, TEXT("Layer_TrailRenderer"));
+		if (nullptr != pList)
+		{
+			auto iter = pList->end();
+			--iter;
+
+			CTrailRenderer* pTrailRenderer = dynamic_cast<CTrailRenderer*>((*iter));
+			m_vecTrailRenderer.emplace_back(pTrailRenderer);
+			Safe_AddRef(pTrailRenderer);
+		}
+	}
+
+
+	m_pTransform->Set_Scale(_float3(0.2f, 0.2f, 1.f));
+	
+	return S_OK;
+}
+
+_uint CBullet::Tick(_float fTimeDelta)
+{
+	if (m_bDead)
+		return OBJECT_NOTHING;
+
+	if (0.f <= m_fLifeTime)
+	{
+		m_fLifeTime -= fTimeDelta;
+		//m_fFrame += fTimeDelta;
+	}
+
+	m_pTransform->Go_Straight(fTimeDelta); //움직인다.
+
+	// 여기서 트레일에 위치 넘겨주기.
+	m_fTrailTerm += fTimeDelta;
+	if (m_fTrailTerm > TRAILTERM)
+	{
+		Set_Trail();
+		m_fTrailTerm = 0.f;
+	}
+	
+
+	
+
+	return OBJECT_NOTHING;
+}
+
+void CBullet::Late_Tick(_float fTimeDelta)
+{
+	if (0.f > m_fLifeTime)
+		m_bDead = true;
+
+	if (m_bDead)
+		return;
+
+
+	__super::Late_Tick(fTimeDelta);
+	m_pGameInstance->Add_RenderObject(CRenderer::RENDER_NONBLEND, this);
+}
+
+HRESULT CBullet::Render()
+{
+	if (m_bDead)
+		return S_OK;
+
+	if (BULLET_LIFE_TIME == m_fLifeTime)
+		return S_OK;
+
+	if (FAILED(m_pTransform->Bind_WorldMatrix()))
+	{
+		MSG_BOX(TEXT("Failed to Bind_WorldMatrix : Render"));
+		return E_FAIL;
+	}
+	if (FAILED(m_pTextureCom->Bind_Texture(0, (_uint)m_fFrame)))
+	{
+		MSG_BOX(TEXT("Failed to Bind_Texture : Render"));
+		return E_FAIL;
+	}
+	//m_pGraphic_Device->SetRenderState(D3DRS_FILLMODE, D3DFILL_WIREFRAME);
+	if (FAILED(Set_RenderState()))
+	{
+		MSG_BOX(TEXT("Failed to Set_RenderState : Render"));
+		return E_FAIL;
+	}
+	if (FAILED(m_pVIBuffer_Com->Render()))
+	{
+		MSG_BOX(TEXT("Failed to Render : Render"));
+		return E_FAIL;
+	}
+	if (FAILED(Reset_RenderState()))
+	{
+		MSG_BOX(TEXT("Failed to Reset_RenderState : Render"));
+		return E_FAIL;
+	}
+
+
+	return S_OK;
+}
+
+HRESULT CBullet::Add_Components()
+{
+	/* For.Com_VIBuffer */
+	if (FAILED(__super::Add_Component(LEVEL_STATIC, TEXT("Prototype_Component_VIBuffer_Rect"), TEXT("Com_VIBuffer"), reinterpret_cast<CComponent**>(&m_pVIBuffer_Com))))
+	{
+		MSG_BOX(TEXT("Failed to Prototype_Component_VIBuffer_Rect : Add_Components"));
+		return E_FAIL;
+	}
+
+	/* For.Com_Texture */
+	if (FAILED(__super::Add_Component(g_eLevel, TEXT("Prototype_Component_Texture_Bullet"), TEXT("Com_Texture"), reinterpret_cast<CComponent**>(&m_pTextureCom))))
+	{
+		MSG_BOX(TEXT("Failed to Prototype_Component_Texture_Bullet : Add_Components"));
+		return E_FAIL;
+	}
+
+	return S_OK;
+}
+
+HRESULT CBullet::Set_RenderState()
+{	
+	if (FAILED(m_pGraphic_Device->SetRenderState(D3DRS_ALPHATESTENABLE, TRUE)))
+	{
+		MSG_BOX(TEXT("Failed to SetRenderState : D3DRS_ALPHATESTENABLE"));
+		return E_FAIL;
+	}
+	if (FAILED(m_pGraphic_Device->SetRenderState(D3DRS_ALPHAREF, 20)))
+	{
+		MSG_BOX(TEXT("Failed to SetRenderState : D3DRS_ALPHAREF"));
+		return E_FAIL;
+	}
+	if (FAILED(m_pGraphic_Device->SetRenderState(D3DRS_ALPHAFUNC, D3DCMP_GREATER)))
+	{
+		MSG_BOX(TEXT("Failed to SetRenderState : D3DRS_ALPHAFUNC"));
+		return E_FAIL;
+	}
+	//m_pGraphic_Device->SetRenderState(D3DRS_FILLMODE, D3DFILL_WIREFRAME);
+	//m_pGraphic_Device->SetRenderState(D3DRS_CULLMODE, D3DCULL_NONE);
+	return S_OK;
+}
+
+HRESULT CBullet::Reset_RenderState()
+{
+	if (FAILED(m_pGraphic_Device->SetRenderState(D3DRS_ALPHATESTENABLE, FALSE)))
+	{
+		MSG_BOX(TEXT("Failed to SetRenderState : D3DRS_ALPHATESTENABLE"));
+		return E_FAIL;
+	}
+	//m_pGraphic_Device->SetRenderState(D3DRS_CULLMODE, D3DCULL_CCW);
+	//m_pGraphic_Device->SetRenderState(D3DRS_FILLMODE, D3DFILL_SOLID);
+	return S_OK;
+}
+
+void CBullet::Set_Trail()
+{
+	_float3 vPos = m_pTransform->Get_State(CTransform::STATE_POSITION); //현재틱에서 움직인 위치 가져오고
+	_float3 vDir = vPos - m_vPrePosition; //이전틱과 현재틱 위치의 방향벡터 구하고
+	_float fLength = D3DXVec3Length(&vDir); //방향벡터의 길이 구하고
+	D3DXVec3Normalize(&vDir,&vDir); //방향벡터 노말라이즈 해주고
+	vPos = (vPos + m_vPrePosition) * 0.5f; // 이전틱과 현재틱의 중간 위치 구해주고.
+	m_vecTrailRenderer[m_iTrailCursor]->Set_Pos_XScale_Rotation(vPos, fLength, vDir);//구한 값들로 트레일 세팅
+	++m_iTrailCursor;
+	if (TRAILMAXNUM <= m_iTrailCursor)
+		m_iTrailCursor = 0;
+	m_vPrePosition = m_pTransform->Get_State(CTransform::STATE_POSITION);
+}
+
+CBullet* CBullet::Create(LPDIRECT3DDEVICE9 pGraphic_Device)
+{
+	CBullet* pInstance = new CBullet(pGraphic_Device);
+
+	if (FAILED(pInstance->Initialize_Prototype()))
+	{
+		MSG_BOX(TEXT("Failed To Created : CBullet"));
+
+		Safe_Release(pInstance);
+	}
+
+	return pInstance;
+}
+
+CGameObject* CBullet::Clone(void* pArg)
+{
+	CBullet* pInstance = new CBullet(*this);
+
+	if (FAILED(pInstance->Initialize(pArg)))
+	{
+		MSG_BOX(TEXT("Failed To Cloned : CBullet"));
+
+		Safe_Release(pInstance);
+	}
+
+	return pInstance;
+}
+
+void CBullet::Free()
+{
+	for (auto iter : m_vecTrailRenderer)
+		Safe_Release(iter);
+	m_vecTrailRenderer.clear();
+
+	Safe_Release(m_pTextureCom);
+	Safe_Release(m_pVIBuffer_Com);
+	__super::Free();
+}

@@ -1,0 +1,205 @@
+#include "pch.h"
+#include "Weapon_Pupa.h"
+#include "GameInstance.h"
+#include "Bullet.h"
+#include "Splat_Default.h"
+#include "Player.h"
+
+
+CWeapon_Pupa::CWeapon_Pupa(LPDIRECT3DDEVICE9 pGraphic_Device) :
+	CWeapon(pGraphic_Device)
+{
+}
+
+CWeapon_Pupa::CWeapon_Pupa(const CWeapon_Pupa& rhs) :
+	CWeapon(rhs)
+{
+}
+
+HRESULT CWeapon_Pupa::Initialize_Prototype()
+{
+	if (FAILED(__super::Initialize_Prototype()))
+	{
+		MSG_BOX(TEXT("Failed to Initialize_Prototype : __super,CPlayer"));
+		return E_FAIL;
+	}
+	m_eID = WEAPON_PUPA;
+	m_eBulletID = BULLET_RIFLE;
+	m_fShootingTerm = PUPA_SHOOTING_TERM;
+	m_fTerm = PUPA_SHOOTING_TERM;
+	m_fCP = 10.f;
+	m_fReboundSize = 1.f;
+	m_eShooting_Way = SHOOTING_SEMIAUTO;
+	m_fMaxGauge = 100.f;
+	return S_OK;
+}
+
+HRESULT CWeapon_Pupa::Initialize(void* pArg)
+{
+	if (FAILED(__super::Initialize(pArg)))
+	{
+		MSG_BOX(TEXT("Failed to Initialize : CWeapon_Pupa"));
+		return E_FAIL;
+	}
+
+	if (FAILED(Clone_Bullet()))
+	{
+		MSG_BOX(TEXT("Failed to Clone_Bullet : CWeapon_Pupa"));
+		return E_FAIL;
+	}
+
+	m_pEffect = dynamic_cast<CSplat_Default*>(m_pGameInstance->Get_Object(LEVEL_STATIC, TEXT("Layer_Effect_Splat_Default")));
+	if (nullptr == m_pEffect)
+	{
+		MSG_BOX(TEXT("Failed to Get Effect : CWeapon_Pupa"));
+		return E_FAIL;
+	}
+	return S_OK;
+}
+
+_uint CWeapon_Pupa::Tick(_float fTimeDelta)
+{
+
+	if (LEVEL_LOADING == m_pGameInstance->Get_Level() || LEVEL_1945 == m_pGameInstance->Get_Level())
+		return OBJECT_NOTHING;
+	__super::Tick(fTimeDelta);
+	
+	m_iExtraBulletNum = 100;
+	if (m_bEx)
+	{
+		CPlayer* pPlayer = dynamic_cast<CPlayer*>(m_pGameInstance->Get_Object(LEVEL_STATIC, TEXT("Layer_Player")));
+		if (nullptr == pPlayer)
+			return OBJECT_NOTHING;
+
+		CWeapon* pWeapon[2] = { pPlayer->Get_Weapon(0),pPlayer->Get_Weapon(1) };
+		if (nullptr != pWeapon[0])
+			pWeapon[0]->Plus_ExBullet();
+		if (nullptr != pWeapon[1])
+			pWeapon[1]->Plus_ExBullet();
+
+		m_fGauge = 0.f;
+	}
+	//m_fGauge = m_fMaxGauge;
+	//m_bEx= true;
+
+	return OBJECT_NOTHING;
+}
+
+HRESULT CWeapon_Pupa::Clone_Bullet()
+{
+	CGameObject::GAMEOBJECT_DESC GameObjectDesc = {};
+	GameObjectDesc.fSpeedPerSec = 200.f;
+
+	m_iMaxBulletNum = 30;
+
+	for (_uint i = 0; i < m_iMaxBulletNum; i++)
+	{
+		if (FAILED(m_pGameInstance->Add_Clone(LEVEL_STATIC, TEXT("Layer_Pupa_Bullet"), TEXT("Prototype_GameObject_Bullet"), &GameObjectDesc)))
+		{
+			MSG_BOX(TEXT("Failed to Ready_Layer_Bullet : CLevel_GamePlay"));
+			return E_FAIL;
+		}
+	}
+
+	m_vecBullet.reserve(m_iMaxBulletNum);
+
+	list<CGameObject*>* pBulletList = m_pGameInstance->Get_List(LEVEL_STATIC, TEXT("Layer_Pupa_Bullet"));
+	if (nullptr == pBulletList)
+		return E_FAIL;
+
+	auto iter = (*pBulletList).begin();
+	for (_uint i = 0; i < m_iMaxBulletNum; i++)
+	{
+		if (iter == (*pBulletList).end())
+			break;
+		m_vecBullet.push_back((CBullet*)(*iter));
+		Safe_AddRef((*iter));
+		iter++;
+	}
+	for (auto iter : m_vecBullet)
+		iter->Set_Frame(3.f);
+	m_iNowBulletNum = m_iMaxBulletNum;
+
+	return S_OK;
+}
+
+void CWeapon_Pupa::Shot_Bullet()
+{
+	if (0 >= m_iNowBulletNum || m_iMaxBulletNum < m_iNowBulletNum)
+		return;
+
+	_float3 vRayDir = {};
+	_float3 vRayPos = {};
+	//m_pGameInstance->Get_World_Mouse_Ray(&vRayDir, &vRayPos);
+	Get_World_Mouse_Ray_Shot_Grouping(&vRayDir, &vRayPos);
+	m_vecBullet[m_iNowBulletNum - 1]->Set_Pos_Dir(vRayPos , vRayDir);
+	//pBullet->Set_Pos_Dir(vWeaponPos, vRayDir);
+	m_vecBullet[m_iNowBulletNum - 1]->Set_Life_Time();
+	--m_iNowBulletNum;
+
+	m_eCurState = STATE_SHOOTING;
+	m_fShootingTerm = PUPA_SHOOTING_TERM;
+
+	m_pGameInstance->PlaySoundW(TEXT("Pupa_Shoot.wav"), CSound_Manager::CHANNEL_WEAPON, 0.12f);
+	
+
+	//ÀÌÆåÆ®
+	m_pEffect->Set_Life_Time();
+}
+
+HRESULT CWeapon_Pupa::Add_Components()
+{
+
+	/* For.Com_VIBuffer */
+	if (FAILED(__super::Add_Component(LEVEL_STATIC, TEXT("Prototype_Component_VIBuffer_Rect"), TEXT("Com_VIBuffer"), reinterpret_cast<CComponent**>(&m_pVIBuffer_Com))))
+	{
+		MSG_BOX(TEXT("Failed to Prototype_Component_VIBuffer_Rect : Add_Components"));
+		return E_FAIL;
+	}
+
+	/* For.Com_Texture */
+	if (FAILED(__super::Add_Component(LEVEL_STATIC, TEXT("Prototype_Component_Texture_Weapon_Pupa"), TEXT("Com_Texture"), reinterpret_cast<CComponent**>(&m_pTextureCom))))
+	{
+		MSG_BOX(TEXT("Failed to Prototype_Component_Texture_Weapon_Pupa : Add_Components"));
+		return E_FAIL;
+	}
+	if (FAILED(__super::Add_Component(LEVEL_STATIC, TEXT("Prototype_Component_Texture_WeaponEx_Pupa"), TEXT("Com_Texture1"), reinterpret_cast<CComponent**>(&m_pTextureCom1))))
+	{
+		MSG_BOX(TEXT("Failed to Prototype_Component_Texture_Weapon_Atlas : Add_Components"));
+		return E_FAIL;
+	}
+	return S_OK;
+}
+
+CWeapon_Pupa* CWeapon_Pupa::Create(LPDIRECT3DDEVICE9 pGraphic_Device)
+{
+	CWeapon_Pupa* pInstance = new CWeapon_Pupa(pGraphic_Device);
+
+	if (FAILED(pInstance->Initialize_Prototype()))
+	{
+		MSG_BOX(TEXT("Failed To Created : CWeapon_Pupa"));
+
+		Safe_Release(pInstance);
+	}
+
+	return pInstance;
+}
+
+CGameObject* CWeapon_Pupa::Clone(void* pArg)
+{
+	CWeapon_Pupa* pInstance = new CWeapon_Pupa(*this);
+
+	if (FAILED(pInstance->Initialize(pArg)))
+	{
+		MSG_BOX(TEXT("Failed To Cloned : CWeapon_Pupa"));
+
+		Safe_Release(pInstance);
+	}
+
+	return pInstance;
+}
+
+void CWeapon_Pupa::Free()
+{
+	__super::Free();
+}

@@ -1,0 +1,157 @@
+#pragma once
+#include "LandObject.h"
+#include "Client_Defines.h"
+
+
+BEGIN(Engine)
+class CVIBuffer_AirPlane;
+class CCollider_Rect;
+class CCollider_Sphere;
+class CCollider;
+class CTexture;
+END
+
+BEGIN(Client)
+
+class CAirPlane final : public CLandObject
+{
+public:
+	typedef struct tagAirPlane_Desc : public CLandObject::LANDOBJECT_DESC {
+		CTransform* pTransform_Aim = {};
+	}AIRPLANE_DESC;
+
+	typedef struct tagAirPlaneWeaponBulletInfo
+	{
+		_float fCP = { 0.f };
+		_uint iNowBulletNum = { 0 };
+		_uint iMaxBulletNum = { 0 };
+	}AIRPLANE_WEAPON_BULLET_INFO;
+	enum STATE { STATE_IDLE, STATE_AIMING, STATE_ROLL,
+		STATE_DEAD, STATE_HIT, STATE_END };
+private:
+	enum AIMING{ AIMING_NOTHING, AIMING_SHOOT, AIMING_GUN_CHANGE, AIMING_END};
+	enum SKILL_SLOT { SPACE_SKILL, SHIFT_SKILL, SKILL_SLOT_END };
+private:
+	CAirPlane(LPDIRECT3DDEVICE9 pGraphic_Device);
+	CAirPlane(const CAirPlane& rhs);
+	virtual ~CAirPlane() = default;
+
+public:
+	virtual HRESULT Initialize_Prototype() override;
+	virtual HRESULT Initialize(void* pArg) override;
+	virtual _uint Tick(_float fTimeDelta) override;
+	virtual void Late_Tick(_float fTimeDelta) override;
+	virtual HRESULT Render() override;
+
+	STATE Get_CurState() { return m_eCurState; }
+	
+	_float3 Get_MousePos() { return m_vMousePos; }
+	_uint* Get_NowBullet() { return &m_tBulletInfo.iNowBulletNum; }
+	_uint* Get_MaxBullet() { return &m_tBulletInfo.iMaxBulletNum; }
+	_uint* Get_UsingSkillNum() { return &m_iSkill; }
+	_float Get_Cool_Time(_uint eKey ) { return  m_pSkillCoolTime[eKey]; }
+	_float Get_Cool_Time1(_uint eKey ) { return  m_pSkillCoolTimeTime[eKey]; }
+	void Set_Hit(_bool bHit) { m_bHit = bHit; }
+	void Set_Invincibility(_bool bInv) { m_bInvincibility= bInv; }
+	void Set_Skill(_uint iSkill) { m_iSkill += iSkill; }
+
+	HRESULT Drop_Item(_uint iIndex);
+
+	void SetCutScene(_bool _CutScene);
+public:
+	void Return_Look_Position(_float3* pvLook, _float3* pvPosition);
+	void Look_At(const _float3& vAt);
+	_float3 Return_ViewPort_Pos();
+
+	_float Collision_Bullet_Rect(class CCollider_Rect* pCollider_Rect, _float fTimeDelta);
+	//_float Collision_Bullet_Sphere(class CCollider_Sphere* pCollider_Sphere, _float fTimeDelta);
+
+private:
+	HRESULT Add_Components();
+	HRESULT Clone_Bullet();
+	HRESULT Set_RenderState();
+	HRESULT Reset_RenderState();
+	HRESULT Motion_Change(_float fTimDelta);
+	void		Look_At_Aim();
+
+	_float3 Compute_MovePos();
+
+	void Shot_Bullet();	
+	
+
+	//For. Collsion
+	void Collider_Update();
+	void Collision(_float fTimeDelta);
+	void Collision_Wall();
+	void Collision_Monster();
+	void Collision_Layser();
+	void Collision_MoonStone();
+	void Collision_Monster_Bullet(_float fTimeDelta);
+
+
+	void Key_Input(_float fTimeDelta);
+
+
+
+private:
+	void Mouse_Axis_Turn(_float fTimeDelta);
+	void Landing_Terrain();
+	_bool Roll(_float fTimeDelta);
+private:
+
+	_bool			m_bCutScene = {false}; // 컷신인지?
+
+	_bool			m_bFirstAim = true;
+	_bool			m_bInvincibility = false; //무적
+	_bool			m_bChange = false; //무적
+	_bool			m_bHit = false;
+	_bool			m_bRoll = false;
+	_bool			m_bLevelChange = false;
+	_float		m_fHitTime = { 0.f };
+	_float		m_fInvincibilityMaxTime = { 0.f };
+	_float		m_fInvincibilityTime = { 0.f };
+	_float		m_fFrame = { 0.f };
+	_float		m_fTexture = { 0.f };
+	_float		m_fTime = { 0.f };
+	_float		m_fTimeForBullet = { 0.f };
+	_float		m_fTimeRoll = { 0.f };
+	_float		m_fEmpLifTime = { 2.f };
+
+
+	_float3		m_vPlayerLook = { 0.f,0.f,1.f };
+	_float		m_pSkillCoolTime[SKILL_SLOT_END] = { 3.f, 5.f };
+	_float		m_pSkillCoolTimeTime[SKILL_SLOT_END] = { 0.f,0.f };
+	_uint			m_iPower = { 0 };
+	_uint			m_iMaxPower = { 3 };
+	_uint			m_iSkill = { 3 };
+	_uint			m_iMaxSkill = { 3 };
+	AIRPLANE_WEAPON_BULLET_INFO m_tBulletInfo = {};
+	_float3		m_vMousePos = {};
+	_float3		m_vTargetPos = {};
+
+	_float4x4 m_WorldMatrix = {};
+
+
+	CCollider*						m_pCollider_Com[COLLIDER_END] = {};
+	CTransform*					m_pDWCameraTranformCom = { nullptr };
+	CVIBuffer_AirPlane*		m_pVIBuffer_Com = { nullptr };
+	CTexture*						m_pTextureCom = { nullptr };
+	class CState*					m_pStateCom = { nullptr };
+
+	
+	POINT							m_ptMouse = {};
+	STATE							m_eCurState = { STATE_IDLE };
+	STATE							m_ePreState = { STATE_END };
+
+	AIMING							m_eCurAiming = { AIMING_NOTHING}; // 에임하면서 뭘하고 있냐
+	AIMING							m_ePreAiming = { AIMING_NOTHING };
+	
+	vector<class CBullet*> m_vecBullet = {}; //랜덤엑세스를 위한 벡터 컨테이너
+
+public:
+	static CAirPlane* Create(LPDIRECT3DDEVICE9 pGraphic_Device);
+	virtual CGameObject* Clone(void* pArg) override;
+	virtual void Free() override;
+};
+
+END

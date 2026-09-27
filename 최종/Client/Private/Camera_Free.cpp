@@ -1,0 +1,166 @@
+#include "pch.h"
+#include "Camera_Free.h"
+
+CCamera_Free::CCamera_Free(LPDIRECT3DDEVICE9 pGraphic_Device)
+	: CCamera(pGraphic_Device)
+{
+}
+
+CCamera_Free::CCamera_Free(const CCamera_Free& rhs)
+	: CCamera(rhs),
+	m_fMouseSensor(rhs.m_fMouseSensor)
+{
+}
+
+HRESULT CCamera_Free::Initialize_Prototype()
+{
+	return S_OK;
+}
+
+HRESULT CCamera_Free::Initialize(void* pArg)
+{
+	if (FAILED(__super::Initialize(pArg))) 
+	{
+		MSG_BOX(TEXT("Failed to Initialize : CCamera_Free"));
+		return E_FAIL;
+	}
+
+	if (nullptr != pArg)
+	{
+		CAMERA_FREE_DESC* pCameraFreeDesc = (CAMERA_FREE_DESC*)pArg;
+		m_fMouseSensor = pCameraFreeDesc->fMouseSensor;
+	}
+	m_ptMouse = { (_ulong)g_iWinSizeX / 2 , (_ulong)g_iWinSizeY / 2 };
+	ClientToScreen(g_hWnd,&m_ptMouse);
+	SetCursorPos(m_ptMouse.x, m_ptMouse.y);
+
+	return S_OK;
+}
+
+_uint CCamera_Free::Tick(_float fTimeDelta)
+{
+	if (m_bDead)
+		return OBJECT_DEAD;
+
+	if (GetAsyncKeyState(VK_RIGHT) & 0x8000)
+	{
+		m_pTransform->Go_Right(fTimeDelta);
+	}
+
+	if (GetAsyncKeyState(VK_LEFT) & 0x8000)
+	{
+		m_pTransform->Go_Left(fTimeDelta);
+	}
+
+	if (GetAsyncKeyState(VK_UP) & 0x8000)
+	{
+		m_pTransform->Go_Straight(fTimeDelta);
+	}
+
+	if (GetAsyncKeyState(VK_DOWN) & 0x8000)
+	{
+		m_pTransform->Go_Backward(fTimeDelta);
+	}
+
+	Mouse_Axis_Turn(fTimeDelta);
+	/*_long MouseMoveX = ptMouse.x - m_ptMouse.x;
+
+	if (0 != MouseMoveX)
+	{
+		m_pTransformCom->Turn(_float3(0.f, 1.f, 0.f), fTimeDelta * MouseMoveX * m_fMouseSensor);
+	}
+
+	_long MouseMoveY = ptMouse.y - m_ptMouse.y;
+
+	if (0 != MouseMoveY)
+	{
+		m_pTransformCom->Turn(m_pTransformCom->Get_State(CTransform::STATE_RIGHT), fTimeDelta * MouseMoveY * m_fMouseSensor);
+	}*/
+
+	
+	if (FAILED(__super::Bind_PipeLines()))
+	{
+		MSG_BOX(TEXT("Failed to Bind_PipeLines : CCamera_Free"));
+		return 1;
+	}
+
+	return OBJECT_NOTHING;
+}
+
+void CCamera_Free::Late_Tick(_float fTimeDelta)
+{
+	
+}
+
+void CCamera_Free::Mouse_Axis_Turn(_float fTimeDelta)
+{
+	//POINT ptMouse = {};
+	//GetCursorPos(&ptMouse);
+	//ScreenToClient(g_hWnd, &ptMouse);
+	//m_vCurrentMousePosition.x = (_float)ptMouse.x;
+	//m_vCurrentMousePosition.y = (_float)ptMouse.y;
+	//m_vCurrentMousePosition.z = 0.f;
+	//_float3 vRight = m_pTransform->Get_State(CTransform::STATE_RIGHT);
+	//_float3 vUp = m_pTransform->Get_State(CTransform::STATE_UP);
+	//_float3 vLook = m_pTransform->Get_State(CTransform::STATE_LOOK);
+	//_float4x4 WorldMatrix = { vRight.x,vRight.y,vRight.z,0.f,
+	//vUp.x,vUp.y,vUp.z,0.f,
+	//vLook.x,vLook.y,vLook.z,0.f,
+	//0.f, 0.f, 0.f, 1.f
+	//};
+	//_float3 vAxis = m_vCurrentMousePosition - m_vPreMousePosition;
+	//vAxis = { vAxis.y, vAxis.x, 0.f };
+	//D3DXVec3TransformNormal(&vAxis, &vAxis, &WorldMatrix);
+	//m_pTransform->Turn(vAxis, fTimeDelta);//·èº¤ÅÍ¿Í ¼öÁ÷
+	//m_vPreMousePosition = m_vCurrentMousePosition;
+
+
+	POINT ptMouse = {};
+	GetCursorPos(&ptMouse);
+
+	_long lDeltaX = ptMouse.x - m_ptMouse.x;
+	_long lDeltaY = ptMouse.y - m_ptMouse.y;
+
+	if (0 != lDeltaX)
+	{
+		m_pTransform->Turn(_float3(0.f, 1.f, 0.f), fTimeDelta * lDeltaX * m_fMouseSensor );
+	}
+
+	if (0 != lDeltaY)
+	{
+		m_pTransform->Turn(m_pTransform->Get_State(CTransform::STATE_RIGHT), fTimeDelta * lDeltaY * m_fMouseSensor );
+	}
+
+	SetCursorPos(m_ptMouse.x, m_ptMouse.y);
+}
+
+CCamera_Free* CCamera_Free::Create(LPDIRECT3DDEVICE9 pGraphic_Device)
+{
+	CCamera_Free* pInstance = new CCamera_Free(pGraphic_Device);
+	if (FAILED(pInstance->Initialize_Prototype()))
+	{
+		MSG_BOX(TEXT("Faild to Created : CCamera_Free"));
+
+		Safe_Release(pInstance);
+	}
+
+	return pInstance;
+}
+
+CGameObject* CCamera_Free::Clone(void* pArg)
+{
+	CCamera_Free* pInstance = new CCamera_Free(*this);
+	if (FAILED(pInstance->Initialize(pArg)))
+	{
+		MSG_BOX(TEXT("Faild to Cloned : CCamera_Free"));
+
+		Safe_Release(pInstance);
+	}
+
+	return pInstance;
+}
+
+void CCamera_Free::Free()
+{
+	__super::Free();
+}

@@ -1,0 +1,302 @@
+#include "pch.h"
+#include "Terrain.h"
+#include "GameInstance.h"
+#include "Camera_Player_DW.h"
+
+CTerrain::CTerrain(LPDIRECT3DDEVICE9 pGraphic_Device) :
+	CGameObject(pGraphic_Device)
+{
+}
+
+CTerrain::CTerrain(const CTerrain& rhs) :
+	CGameObject(rhs)
+{
+}
+
+HRESULT CTerrain::Initialize_Prototype()
+{
+	if (FAILED(__super::Initialize_Prototype()))
+	{
+		MSG_BOX(TEXT("Failed to Initialize_Prototype : __super,CTerrain"));
+		return E_FAIL;
+	}
+
+	return S_OK;
+}
+
+HRESULT CTerrain::Initialize(void* pArg)
+{
+
+	if (FAILED(__super::Initialize(pArg)))
+	{
+		MSG_BOX(TEXT("Failed to Initialize : __super,CTerrain"));
+		return E_FAIL;
+	}
+
+	if (nullptr != pArg)
+	{///////////////////////////////////////////
+		TERRAIN_DESC* pTerrainDesc = (TERRAIN_DESC*)pArg;
+		m_iFrame = pTerrainDesc->iFrame;
+		//pArg
+		if (FAILED(Add_Components(pTerrainDesc->strVIBufferTag, pTerrainDesc->iLevel)))
+		{
+			MSG_BOX(TEXT("Failed to Add_Components : __super,CTerrain"));
+			return E_FAIL;
+		}
+	}
+	else
+	{
+		if (FAILED(Add_Components()))
+		{
+			MSG_BOX(TEXT("Failed to Add_Components : __super,CTerrain"));
+			return E_FAIL;
+		}
+	}
+
+	m_fFrame = m_iFrame;
+
+	return S_OK;
+}
+
+_uint CTerrain::Tick(_float fTimeDelta)
+{
+	if (m_bDead)
+		return OBJECT_NOTHING;
+
+	if (8 == m_iFrame)
+	{
+		// 스프라이트
+		CCamera_Player_DW* pCamera = dynamic_cast<CCamera_Player_DW*> (m_pGameInstance->Get_Object(LEVEL_STATIC, TEXT("Layer_Camera_Player")));
+		if (nullptr != pCamera && CCamera_Player_DW::CAMERA_BOSS_END == pCamera->Get_Camera_Mode())
+		{
+			m_fFrame += fTimeDelta * 1.f;
+			if (m_fFrame > 18.f)
+				m_fFrame = 18.f;
+		}
+	}
+
+	__super::Tick(fTimeDelta);
+	//Landing_Object(TEXT("Layer_Player"));
+	return OBJECT_NOTHING;
+}
+
+void CTerrain::Late_Tick(_float fTimeDelta)
+{
+	__super::Late_Tick(fTimeDelta);
+
+	m_pGameInstance->Add_RenderObject(CRenderer::RENDER_NONBLEND, this);
+}
+
+HRESULT CTerrain::Render()
+{
+	//if (FAILED(__super::Render()))
+	//{
+	//	MSG_BOX(TEXT("Failed to Render : __super,CTerrain"));
+	//	return E_FAIL;
+	//}
+
+
+	if (g_eLevel == LEVEL_1945)
+		return S_OK;
+
+	_float4x4 ViewMatrix, ProjectionMatrix;
+
+	//D3DXMatrixIdentity(&IdentityMatrix);
+	//D3DXMatrixIdentity(&ProjectionMatrix);
+	////near 10
+	////far 400
+	//ProjectionMatrix._11 = 1.f/(float)sqrt(3.f)/((float)g_iWinSizeX/ g_iWinSizeY);
+	//ProjectionMatrix._22 = 1.f/(float)sqrt(3.f);
+	//ProjectionMatrix._33 = 400.f/390.f; //
+	//ProjectionMatrix._34 = 1.f;
+	//ProjectionMatrix._43 = -400.f * 10.f / 390.f;
+
+	
+
+
+	if (FAILED(m_pTransform->Bind_WorldMatrix()))
+	{
+		MSG_BOX(TEXT("Failed to Bind_WorldMatrix : __super,CTerrain"));
+		return E_FAIL;
+	}
+
+	//_float4x4 tempMat = *m_pTransform->Get_WorldMatrix_Inverse();
+	//D3DXMatrixInverse(&InverseMatrix, nullptr, &m_WorldMatrix);
+	//m_pGraphic_Device->SetTransform(D3DTS_VIEW, D3DXMatrixLookAtLH(&ViewMatrix, &vEye, &vAt, &vUp)  );
+	//m_pGraphic_Device->SetTransform(D3DTS_PROJECTION, D3DXMatrixPerspectiveFovLH(&ProjectionMatrix, D3DXToRadian(60.f), (float)g_iWinSizeX / g_iWinSizeY, 0.2f, 300.f));
+
+	if (FAILED(m_pTextureCom->Bind_Texture(0, (_uint)m_fFrame)))
+	{
+		MSG_BOX(TEXT("Failed to Bind_Texture : __super,CTerrain"));
+		return E_FAIL;
+	}
+
+	//m_pGraphic_Device->SetRenderState(D3DRS_FILLMODE, D3DFILL_WIREFRAME);
+
+	if (FAILED(m_pVIBuffer_Com->Render()))
+	{
+		MSG_BOX(TEXT("Failed to Render : __super,CTerrain"));
+		return E_FAIL;
+	}
+	//m_pGraphic_Device->SetRenderState(D3DRS_FILLMODE, D3DFILL_SOLID);
+	return S_OK;
+}
+
+HRESULT CTerrain::Add_Components()
+{
+	if (LEVEL_LOADING == m_pGameInstance->Get_Level())
+	{
+		/* For.Com_VIBuffer */
+		if (FAILED(__super::Add_Component(LEVEL_TUTORIAL, TEXT("Prototype_Component_VIBuffer_Terrain"), TEXT("Com_VIBuffer"), reinterpret_cast<CComponent**>(&m_pVIBuffer_Com))))
+		{
+			MSG_BOX(TEXT("Failed to Prototype_Component_VIBuffer_Terrain : Add_Components"));
+			return E_FAIL;
+		}
+
+		/* For.Com_Texture */
+		if (FAILED(__super::Add_Component(LEVEL_TUTORIAL, TEXT("Prototype_Component_Texture_Terrain"), TEXT("Com_Texture"), reinterpret_cast<CComponent**>(&m_pTextureCom))))
+		{
+			MSG_BOX(TEXT("Failed to Prototype_Component_Texture_Logo : Add_Components"));
+			return E_FAIL;
+		}
+	}
+	else if(LEVEL_LOGO == m_pGameInstance->Get_Level())
+	{
+		/* For.Com_VIBuffer */
+		if (FAILED(__super::Add_Component(LEVEL_SNOWBOSS, TEXT("Prototype_Component_VIBuffer_Terrain_Data"), TEXT("Com_VIBuffer"), reinterpret_cast<CComponent**>(&m_pVIBuffer_Com))))
+		{
+			MSG_BOX(TEXT("Failed to Prototype_Component_VIBuffer_Terrain : Add_Components"));
+			return E_FAIL;
+		}
+
+		/* For.Com_Texture */
+		if (FAILED(__super::Add_Component(LEVEL_SNOWBOSS, TEXT("Prototype_Component_Texture_Terrain"), TEXT("Com_Texture"), reinterpret_cast<CComponent**>(&m_pTextureCom))))
+		{
+			MSG_BOX(TEXT("Failed to Prototype_Component_Texture_Logo : Add_Components"));
+			return E_FAIL;
+		}
+	}
+	return S_OK;
+}
+
+HRESULT CTerrain::Add_Components(const wstring& strObjectLayerTag)
+{
+	//if (LEVEL_LOADING == m_pGameInstance->Get_Level())
+	//{
+	//	/* For.Com_VIBuffer */
+	//	if (FAILED(__super::Add_Component(LEVEL_TUTORIAL, strObjectLayerTag, TEXT("Com_VIBuffer"), reinterpret_cast<CComponent**>(&m_pVIBuffer_Com))))
+	//	{
+	//		MSG_BOX(TEXT("Failed to Prototype_Component_VIBuffer_Terrain : Add_Components"));
+	//		return E_FAIL;
+	//	}
+
+	//	/* For.Com_Texture */
+	//	if (FAILED(__super::Add_Component(LEVEL_TUTORIAL, TEXT("Prototype_Component_Texture_Terrain"), TEXT("Com_Texture"), reinterpret_cast<CComponent**>(&m_pTextureCom))))
+	//	{
+	//		MSG_BOX(TEXT("Failed to Prototype_Component_Texture_Logo : Add_Components"));
+	//		return E_FAIL;
+	//	}
+	//}
+	//else if (LEVEL_LOGO == m_pGameInstance->Get_Level())
+	//{
+	//	/* For.Com_VIBuffer */
+	//	if (FAILED(__super::Add_Component(LEVEL_SNOWBOSS, strObjectLayerTag, TEXT("Com_VIBuffer"), reinterpret_cast<CComponent**>(&m_pVIBuffer_Com))))
+	//	{
+	//		MSG_BOX(TEXT("Failed to Prototype_Component_VIBuffer_Terrain : Add_Components"));
+	//		return E_FAIL;
+	//	}
+
+	//	/* For.Com_Texture */
+	//	if (FAILED(__super::Add_Component(LEVEL_SNOWBOSS, TEXT("Prototype_Component_Texture_Terrain"), TEXT("Com_Texture"), reinterpret_cast<CComponent**>(&m_pTextureCom))))
+	//	{
+	//		MSG_BOX(TEXT("Failed to Prototype_Component_Texture_Logo : Add_Components"));
+	//		return E_FAIL;
+	//	}
+	//}
+
+
+	/* For.Com_VIBuffer */
+	if (FAILED(__super::Add_Component(LEVEL_STATIC, strObjectLayerTag, TEXT("Com_VIBuffer"), reinterpret_cast<CComponent**>(&m_pVIBuffer_Com))))
+	{
+		MSG_BOX(TEXT("Failed to Prototype_Component_VIBuffer_Terrain : Add_Components"));
+		return E_FAIL;
+	}
+
+	/* For.Com_Texture */
+	if (FAILED(__super::Add_Component(LEVEL_STATIC, TEXT("Prototype_Component_Texture_Terrain"), TEXT("Com_Texture"), reinterpret_cast<CComponent**>(&m_pTextureCom))))
+	{
+		MSG_BOX(TEXT("Failed to Prototype_Component_Texture_Logo : Add_Components"));
+		return E_FAIL;
+	}
+
+
+
+	return S_OK;
+}
+
+HRESULT CTerrain::Add_Components(const wstring& strObjectLayerTag, _uint iLevel)
+{
+		/* For.Com_VIBuffer */
+		if (FAILED(__super::Add_Component(iLevel, strObjectLayerTag, TEXT("Com_VIBuffer"), reinterpret_cast<CComponent**>(&m_pVIBuffer_Com))))
+		{
+			MSG_BOX(TEXT("Failed to Prototype_Component_VIBuffer_Terrain : Add_Components"));
+			return E_FAIL;
+		}
+
+		/* For.Com_Texture */
+		if (FAILED(__super::Add_Component(LEVEL_STATIC, TEXT("Prototype_Component_Texture_Terrain"), TEXT("Com_Texture"), reinterpret_cast<CComponent**>(&m_pTextureCom))))
+		{
+			MSG_BOX(TEXT("Failed to Prototype_Component_Texture_Logo : Add_Components"));
+			return E_FAIL;
+		}
+	
+	return S_OK;
+}
+
+void CTerrain::Landing_Object(const wstring& strObjectLayerTag)
+{
+	CTransform* pObjectTranform  = dynamic_cast<CTransform*>(m_pGameInstance->Get_Component(g_eLevel, strObjectLayerTag.c_str(), g_strTransformTag));
+
+	_float3 vPosition = pObjectTranform->Get_State(CTransform::STATE_POSITION);
+
+	D3DXPLANE Plane = m_pVIBuffer_Com->Find_Poligon_XZ_Plane(vPosition);
+	//못찾았을때 예외처리 필요.
+	vPosition.y = (-Plane.a * vPosition.x - Plane.c * vPosition.z - Plane.d) / Plane.b;
+
+	
+	pObjectTranform->Set_State(CTransform::STATE_POSITION, vPosition);
+}
+
+CTerrain* CTerrain::Create(LPDIRECT3DDEVICE9 pGraphic_Device)
+{
+	CTerrain* pInstance = new CTerrain(pGraphic_Device);
+	if (FAILED(pInstance->Initialize_Prototype()))
+	{
+		MSG_BOX(TEXT("Failed to Created : CTerrain"));
+
+		Safe_Release(pInstance);
+	}
+
+	return pInstance;
+}
+
+CGameObject* CTerrain::Clone(void* pArg)
+{
+	CTerrain* pInstance = new CTerrain(*this);
+	if (FAILED(pInstance->Initialize(pArg)))
+	{
+		MSG_BOX(TEXT("Failed to Cloned : CTerrain"));
+
+		Safe_Release(pInstance);
+	}
+
+	return pInstance;
+}
+
+void CTerrain::Free()
+{
+	Safe_Release(m_pVIBuffer_Com);
+	Safe_Release(m_pTextureCom);
+
+	__super::Free();
+}

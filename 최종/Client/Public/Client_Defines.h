@@ -1,0 +1,28 @@
+#pragma once
+
+
+BEGIN(Client)
+
+enum LEVEL { LEVEL_STATIC, LEVEL_LOADING, LEVEL_LOGO, LEVEL_TUTORIAL, LEVEL_NORMAL1, LEVEL_1945, LEVEL_NORMAL2, LEVEL_SNOWBOSS, LEVEL_END };
+enum COLLIDER { COLLIDER_RECT, COLLIDER_SPHERE, COLLIDER_CUBE_AABB, COLLIDER_END };
+
+const unsigned int g_iWinSizeX = 1280;
+const unsigned int g_iWinSizeY = 720;
+
+END
+extern _bool g_UI;
+extern _uint g_eLevel;
+extern HWND g_hWnd;
+extern HINSTANCE g_hInst;
+
+using namespace Client;
+
+#include <string>
+#include <random>
+using namespace std;
+
+#define OBJECT_NOTHING 0
+#define OBJECT_DEAD 1
+
+#define OBJECT_BURN 1
+#define OBJECT_ELECTRIC 2

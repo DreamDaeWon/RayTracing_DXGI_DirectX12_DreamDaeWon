@@ -1,0 +1,261 @@
+#include "pch.h"
+#include "Weapon_Atlas.h"
+#include "GameInstance.h"
+#include "Bullet.h"
+#include "Effect_Orange_Circle.h"
+#include "Effect_Splat_Orange.h"
+
+HRESULT CWeapon_Atlas::Initialize_Prototype()
+{
+	if (FAILED(__super::Initialize_Prototype()))
+	{
+		MSG_BOX(TEXT("Failed to Initialize_Prototype : __super,CPlayer"));
+		return E_FAIL;
+	}
+	m_eID = WEAPON_ATLAS;
+	m_eBulletID = BULLET_SHOTGUN;
+	m_fShootingTerm = ATLAS_SHOOTING_TERM;
+	m_fTerm = ATLAS_SHOOTING_TERM;
+	m_iMaxBulletNum = 7 * 9;
+	m_iNowBulletNum = 7 * 9;
+	m_iExtraBulletNum = 42 * 9;
+	m_eShooting_Way = SHOOTING_SEMIAUTO;
+	m_fReboundSize = 5.f;
+	m_fCP = 5.f;
+	m_iQAimSize = 64;
+	return S_OK;
+}
+
+HRESULT CWeapon_Atlas::Initialize(void* pArg)
+{
+	if (FAILED(__super::Initialize(pArg)))
+	{
+		MSG_BOX(TEXT("Failed to Initialize : CWeapon_Atlas"));
+		return E_FAIL;
+	}
+
+	if (FAILED(Clone_Bullet()))
+	{
+		MSG_BOX(TEXT("Failed to Clone_Bullet : CWeapon_Atlas"));
+		return E_FAIL;
+	}
+
+	m_pEffect = dynamic_cast<CEffect_Splat_Orange*>(m_pGameInstance->Get_Object(LEVEL_STATIC, TEXT("Layer_Effect_Splat_Orange")));
+	if (nullptr == m_pEffect)
+	{
+		MSG_BOX(TEXT("Failed to Get_Object :  CEffect_Splat_Orange"));
+		return E_FAIL;
+	}
+
+	m_pCircleEffect = dynamic_cast<CEffect_Orange_Circle*>(m_pGameInstance->Get_Object(LEVEL_STATIC, TEXT("Layer_Effect_Splat_Orange_Circle")));
+	if (nullptr == m_pCircleEffect)
+	{
+		MSG_BOX(TEXT("Failed to Get_Object :  CEffect_Orange_Circle"));
+		return E_FAIL;
+	}
+
+
+
+	return S_OK;
+}
+
+HRESULT CWeapon_Atlas::Clone_Bullet()
+{
+	CGameObject::GAMEOBJECT_DESC GameObjectDesc = {};
+	GameObjectDesc.fSpeedPerSec = 200.f;//?
+
+	for (_uint i = 0; i < m_iMaxBulletNum; i++)
+	{
+		if (FAILED(m_pGameInstance->Add_Clone(LEVEL_STATIC, TEXT("Layer_Atlas_Bullet"), TEXT("Prototype_GameObject_Bullet"), &GameObjectDesc)))
+		{
+			MSG_BOX(TEXT("Failed to Ready_Layer_Bullet : CLevel_GamePlay"));
+			return E_FAIL;
+		}
+	}
+
+	m_vecBullet.reserve(m_iMaxBulletNum);
+
+	list<CGameObject*>* pBulletList = m_pGameInstance->Get_List(LEVEL_STATIC, TEXT("Layer_Atlas_Bullet"));
+	if (nullptr == pBulletList)
+		return E_FAIL;
+
+	auto iter = (*pBulletList).begin();
+	for (_uint i = 0; i < m_iMaxBulletNum; i++)
+	{
+		if (iter == (*pBulletList).end())
+			break;
+		m_vecBullet.push_back((CBullet*)(*iter));
+		Safe_AddRef((*iter));
+		iter++;
+	}
+	for (auto iter : m_vecBullet)
+		iter->Set_Frame(7.f);
+	m_iNowBulletNum = m_iMaxBulletNum;
+
+	return S_OK;
+}
+
+CWeapon_Atlas::CWeapon_Atlas(LPDIRECT3DDEVICE9 pGraphic_Device) :
+	CWeapon(pGraphic_Device)
+{
+}
+
+CWeapon_Atlas::CWeapon_Atlas(const CWeapon_Atlas& rhs) :
+	CWeapon(rhs)
+{
+}
+
+_uint CWeapon_Atlas::Tick(_float fTimeDelta)
+{
+	__super::Tick(fTimeDelta);
+	if (m_bEx)
+	{
+		m_fCP = 7.f;
+		m_iQAimSize = 16;
+	}
+	else
+	{
+		m_fCP = 5.f;
+		m_iQAimSize = 64;
+	}
+
+	return 0;
+}
+
+void CWeapon_Atlas::Shot_Bullet()
+{
+	if (0 >= m_iNowBulletNum || m_iMaxBulletNum < m_iNowBulletNum)
+		return;
+
+	_float3 vRayDir = {};
+	_float3 vRayPos = {};
+	//m_pGameInstance->Get_World_Mouse_Ray(&vRayDir, &vRayPos);//에임 사이 랜덤한 공간으로 레이를 쏜다.
+	Get_World_Mouse_Ray_Shot_Grouping(&vRayDir, &vRayPos);
+	_float3 vShotGun_RayDir[9] = {
+		_float3(0.f,0.f,0.f), //가운데
+		_float3(0.f,0.f,0.f), //상단
+		_float3(0.f,0.f,0.f), //우상단
+		_float3(0.f,0.f,0.f), //우
+		_float3(0.f,0.f,0.f), //우하단
+		_float3(0.f,0.f,0.f), //하
+		_float3(0.f,0.f,0.f), //좌하단
+		_float3(0.f,0.f,0.f), //좌
+		_float3(0.f,0.f,0.f)  //좌상단
+	};
+
+	_float3 vRight = *D3DXVec3Cross(&vRight, &_float3(0.f,1.f,0.f), &vRayDir);
+	D3DXVec3Normalize(&vRight, &vRight);
+	_float3 vUp = *D3DXVec3Cross(&vUp, &vRayDir, &vRight);
+	D3DXVec3Normalize(&vUp, &vUp);
+
+	_float3 vAxis[8] = {};
+	vAxis[0] = -vRight;
+	vAxis[1] = *D3DXVec3Normalize(&vAxis[1] , &(-vRight + vUp));
+	vAxis[2] = vUp;
+	vAxis[3] = *D3DXVec3Normalize(&vAxis[3], &(vRight + vUp));
+	vAxis[4] = vRight;
+	vAxis[5] = *D3DXVec3Normalize(&vAxis[5], &(vRight - vUp));
+	vAxis[6] = -vUp;
+	vAxis[7] = *D3DXVec3Normalize(&vAxis[7], &(-vRight - vUp));
+
+	if (m_bEx)
+	{
+		for (size_t i = 0; i < 8; i++)
+		{
+			_float4x4 RotationMatrix = *D3DXMatrixIdentity(&RotationMatrix);
+			D3DXMatrixRotationAxis(&RotationMatrix, &vAxis[i], D3DXToRadian(ATLAS_SHOOTING_GROUP_NOMAL));
+			D3DXVec3TransformNormal(&vShotGun_RayDir[i + 1], &vRayDir, &RotationMatrix);
+		}
+	}
+	else
+	{
+		for (size_t i = 0; i < 8; i++)
+		{
+			_float4x4 RotationMatrix = *D3DXMatrixIdentity(&RotationMatrix);
+			D3DXMatrixRotationAxis(&RotationMatrix, &vAxis[i], D3DXToRadian(ATLAS_SHOOTING_GROUP_EX));
+			D3DXVec3TransformNormal(&vShotGun_RayDir[i + 1], &vRayDir, &RotationMatrix);
+		}
+	}
+
+	for (_uint i = 0; 9 > i; ++i)
+	{
+		_float3 vBulletRayDir = vRayDir + vShotGun_RayDir[i];
+		D3DXVec3Normalize(&vBulletRayDir, &vBulletRayDir);
+		m_vecBullet[m_iNowBulletNum - 9 + i]->Set_Pos_Dir(vRayPos, vBulletRayDir);
+		//pBullet->Set_Pos_Dir(vWeaponPos, vRayDir);
+		m_vecBullet[m_iNowBulletNum - 9 + i]->Set_Life_Time();
+	}
+	m_iNowBulletNum -= 9;
+
+	m_eCurState = STATE_SHOOTING;
+	m_fShootingTerm = ATLAS_SHOOTING_TERM;
+	if (!m_bEx)
+	{
+		m_pGameInstance->PlaySoundW(TEXT("Atlas_Shoot.wav"),CSound_Manager::CHANNEL_WEAPON, 0.12f);
+	}
+	else
+	{
+		m_pGameInstance->PlaySoundW(TEXT("Atlas_ShootReinforce.wav"), CSound_Manager::CHANNEL_WEAPON, 0.12f);
+	}
+
+	m_pEffect->Set_Life_Time();
+	m_pCircleEffect->Set_Life_Time();
+}
+
+HRESULT CWeapon_Atlas::Add_Components()
+{
+
+	/* For.Com_VIBuffer */
+	if (FAILED(__super::Add_Component(LEVEL_STATIC, TEXT("Prototype_Component_VIBuffer_Rect"), TEXT("Com_VIBuffer"), reinterpret_cast<CComponent**>(&m_pVIBuffer_Com))))
+	{
+		MSG_BOX(TEXT("Failed to Prototype_Component_VIBuffer_Rect : Add_Components"));
+		return E_FAIL;
+	}
+
+	/* For.Com_Texture */
+	if (FAILED(__super::Add_Component(LEVEL_STATIC, TEXT("Prototype_Component_Texture_Weapon_Atlas"), TEXT("Com_Texture"), reinterpret_cast<CComponent**>(&m_pTextureCom))))
+	{
+		MSG_BOX(TEXT("Failed to Prototype_Component_Texture_Weapon_Atlas : Add_Components"));
+		return E_FAIL;
+	}
+
+	if (FAILED(__super::Add_Component(LEVEL_STATIC, TEXT("Prototype_Component_Texture_WeaponEx_Atlas"), TEXT("Com_Texture1"), reinterpret_cast<CComponent**>(&m_pTextureCom1))))
+	{
+		MSG_BOX(TEXT("Failed to Prototype_Component_Texture_Weapon_Atlas : Add_Components"));
+		return E_FAIL;
+	}
+	return S_OK;
+}
+
+CWeapon_Atlas* CWeapon_Atlas::Create(LPDIRECT3DDEVICE9 pGraphic_Device)
+{
+	CWeapon_Atlas* pInstance = new CWeapon_Atlas(pGraphic_Device);
+
+	if (FAILED(pInstance->Initialize_Prototype()))
+	{
+		MSG_BOX(TEXT("Failed To Created : CWeapon_Atlas"));
+
+		Safe_Release(pInstance);
+	}
+
+	return pInstance;
+}
+
+CGameObject* CWeapon_Atlas::Clone(void* pArg)
+{
+	CWeapon_Atlas* pInstance = new CWeapon_Atlas(*this);
+
+	if (FAILED(pInstance->Initialize(pArg)))
+	{
+		MSG_BOX(TEXT("Failed To Cloned : CWeapon_Atlas"));
+
+		Safe_Release(pInstance);
+	}
+
+	return pInstance;
+}
+
+void CWeapon_Atlas::Free()
+{
+	__super::Free();
+}

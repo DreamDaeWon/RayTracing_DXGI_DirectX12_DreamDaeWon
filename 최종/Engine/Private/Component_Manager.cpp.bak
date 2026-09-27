@@ -1,0 +1,93 @@
+#include "Component_Manager.h"
+
+
+CComponent_Manager::CComponent_Manager()
+{
+}
+
+HRESULT CComponent_Manager::Initialize(_uint iNumLevels)
+{
+	m_iNumLevels = iNumLevels;
+
+	m_pPrototypes = new map<const wstring, CComponent*>[iNumLevels];
+
+	return S_OK;
+}
+
+HRESULT CComponent_Manager::Add_Prototype(_uint iLevelIndex, const wstring& strPrototypeTag, CComponent* pPrototype)
+{
+	if (iLevelIndex >= m_iNumLevels)
+	{
+		MSG_BOX(TEXT("Failed Range of ArrayIndex : Add_Prototype"));
+		return E_FAIL;
+	}
+	if (nullptr != Find_Prototype(iLevelIndex, strPrototypeTag))
+	{
+		MSG_BOX(TEXT("Failed to Add_Prototype : Find_Prototype"));
+		return E_FAIL;
+	}
+	m_pPrototypes[iLevelIndex].emplace(strPrototypeTag, pPrototype);
+
+	return S_OK;
+}
+
+CComponent* CComponent_Manager::Clone_Component(_uint iLevelIndex, const wstring& strPrototypeTag, void* pArg)
+{
+	if (iLevelIndex >= m_iNumLevels)
+	{
+		MSG_BOX(TEXT("Failed Range of ArrayIndex : Add_Prototype"));
+		return nullptr;
+	}
+	CComponent* pPrototype = Find_Prototype(iLevelIndex, strPrototypeTag);
+	if (nullptr == pPrototype)
+	{
+		MSG_BOX(TEXT("Failed to nullptr == pPrototype : CComponent_Manager::Clone_Component"));
+		return nullptr;
+	}
+	CComponent* pComponent = pPrototype->Clone(pArg);
+
+	return pComponent;
+}
+
+void CComponent_Manager::Clear(_uint iLevelIndex)
+{
+	for (auto& Pair : m_pPrototypes[iLevelIndex])
+		Safe_Release(Pair.second);
+	m_pPrototypes[iLevelIndex].clear();
+}
+
+CComponent* CComponent_Manager::Find_Prototype(_uint iLevelIndex, const wstring& strPrototypeTag)
+{
+	auto iter = m_pPrototypes[iLevelIndex].find(strPrototypeTag);
+	if (iter == m_pPrototypes[iLevelIndex].end())
+	{
+		//MSG_BOX(TEXT("Failed to iter == m_pPrototypes[iLevelIndex].end() : CComponent_Manager::Find_Prototype"));
+		return nullptr;
+	}
+	return iter->second;
+}
+
+CComponent_Manager* CComponent_Manager::Create(_uint iNumLevels)
+{
+	CComponent_Manager* pInstance = new CComponent_Manager;
+	if (FAILED(pInstance->Initialize(iNumLevels)))
+	{
+		MSG_BOX(TEXT("Failed to Created : CComponent_Manager"));
+
+		Safe_Release(pInstance);
+	}
+
+	return pInstance;
+}
+
+void CComponent_Manager::Free()
+{
+	for (size_t i = 0; m_iNumLevels > i; ++i)
+	{
+		for (auto& iter : m_pPrototypes[i])
+			Safe_Release(iter.second);
+	}
+	Safe_Delete_Array(m_pPrototypes);
+
+	__super::Free();
+}

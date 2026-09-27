@@ -1,0 +1,1555 @@
+#include "pch.h"
+#include "BossYeti.h"
+#include "GameInstance.h"
+#include "Bullet.h"
+#include "State.h"
+#include "Camera_Player_DW.h"
+#include "EarthQuake.h"
+#include "Snow.h"
+#include "RedCircle.h"
+#include "IceSplinter.h"
+#include "Weapon.h"
+#include "Player.h"
+
+CBossYeti::CBossYeti(LPDIRECT3DDEVICE9 pGraphic_Device) :
+	CLandObject(pGraphic_Device)
+{
+
+}
+
+CBossYeti::CBossYeti(const CBossYeti& rhs) :
+	CLandObject(rhs)
+{
+}
+
+HRESULT CBossYeti::Initialize_Prototype()
+{
+	if (FAILED(__super::Initialize_Prototype()))
+	{
+		MSG_BOX(TEXT("Failed to Initialize_Prototype : __super,CBossYeti"));
+		return E_FAIL;
+	}
+
+	return S_OK;
+}
+
+HRESULT CBossYeti::Initialize(void* pArg)
+{
+	if (pArg != nullptr)
+	{
+		LANDOBJECT_DESC* pLandObjectDesc = (LANDOBJECT_DESC*)pArg;
+		pLandObjectDesc->fSpeedPerSec = 1.f;
+		pLandObjectDesc->fRotationPerSec = D3DXToRadian(90.f);
+	}
+
+	if (FAILED(__super::Initialize(pArg)))
+	{
+		MSG_BOX(TEXT("Failed to Initialize : __super,CBossYeti"));
+		return E_FAIL;
+	}
+
+	if (FAILED(Add_Components()))
+	{
+		MSG_BOX(TEXT("Failed to Add_Components : __super,CBossYeti"));
+		return E_FAIL;
+	}
+
+
+	//m_pTransform->Set_State(CTransform::STATE_POSITION, _float3(45.f, 150.f, 45.f));
+	m_pTransform->Set_State(CTransform::STATE_POSITION, _float3(25.f, -10.f, 25.f));
+	m_pTransform->Set_Scale(_float3(m_fScale.x, m_fScale.y, m_fScale.z)); // 크기를 키워줌
+	m_pCollider_Com[COLLIDER_RECT]->Set_Scale(_float3(m_fScale.x * 0.7f, m_fScale.y * 0.5f, m_fScale.z));
+	return S_OK;
+}
+
+_uint CBossYeti::Tick(_float fTimeDelta)
+{
+
+
+
+	if (nullptr == m_pCamera)
+	{
+		m_pCamera = dynamic_cast<CCamera_Player_DW*>(m_pGameInstance->Get_Object(LEVEL_STATIC, TEXT("Layer_Camera_Player")));
+		if (nullptr != m_pCamera)
+		{
+			m_pGameInstance->StopSound(CSound_Manager::CHANNEL_BGM);
+			m_pGameInstance->PlayBGM(L"BossWind.wav"); // 이거 넣어야 함
+		m_pGameInstance->VolumeUp(CSound_Manager::CHANNEL_BGM,0.5f);
+			Safe_AddRef(m_pCamera);
+		}
+	}
+		
+
+	if (m_bDead && m_bDeadShow)
+	{
+		m_bShowEndCutScene = true;
+		m_eNowState = STATE_DEATH;
+		m_pCamera->Set_Camera_Mode(CCamera_Player_DW::CAMERA_BOSS_END);
+
+		return OBJECT_NOTHING;
+	}
+	if (m_eNowState != STATE_DEATH && m_eNowState != STATE_JUMP_ATTAK && m_eNowState != STATE_GOBOTTOM && m_eNowState != STATE_ROLL 
+		&& m_eNowState != STATE_SCENE && m_bCutScene)
+	{
+		__super::SetUp_OnTerrain((m_fScale.y * 0.5f)); // 이거 점프 뛸 때, 죽을 때, 땅을 파고들 때는 하면 안됨
+	}
+	__super::Tick(fTimeDelta);
+
+	// 시네마틱 관련함수
+	if (!m_bCutScene && m_pGameInstance->Key_Down('T'))
+	{
+		m_eNowState = STATE_SCENE_READY;
+		m_bCutScene = true;
+		m_pCamera->SetCameraShaking(false);
+	}
+
+
+	Do_State(fTimeDelta);
+	m_fTextureDir = Set_Texture_Monster_Dir(*D3DXVec3Normalize(&m_vMonsterLook, &m_vMonsterLook));
+	Set_Render_Texture(fTimeDelta);
+
+	m_pUI_Damage->Update_Position(Return_ViewPort_Pos(), Get_ViewZ());
+	//TODO: 용수 충돌처리 테스트
+	_float4x4 WorldMatrix = *m_pTransform->Get_WorldMatrix();
+	//WorldMatrix.m[3][1] -= m_fScale.y * 0.5f;
+	m_pCollider_Com[COLLIDER_RECT]->Update_Collider_Info(WorldMatrix);
+	return OBJECT_NOTHING;
+}
+
+void CBossYeti::Late_Tick(_float fTimeDelta)
+{
+	__super::Late_Tick(fTimeDelta);
+	
+	SetUp_BillBoard();
+	
+	if (STATE_DEATH != m_eNowState)
+		Collision_Bullet(fTimeDelta);
+	Collision_Wall();
+
+	m_pGameInstance->Add_RenderObject(CRenderer::RENDER_NONBLEND, this);
+}
+
+HRESULT CBossYeti::Render()
+{
+
+	if (FAILED(m_pTransform->Bind_WorldMatrix()))
+	{
+		MSG_BOX(TEXT("Failed to Bind_WorldMatrix : Render"));
+		return E_FAIL;
+	}
+	if (m_bShowEndCutScene)
+	{
+		m_fTextureTotal = 2.f;
+	}
+
+	if (FAILED(m_pTextureCom->Bind_Texture(0, (_uint)m_fTextureTotal))) // 첫번째 인자는 0 몇 번째 텍스쿠드좌표를 사용할 지?
+	{
+		MSG_BOX(TEXT("Failed to Bind_Texture : Render"));
+		return E_FAIL;
+	}
+	//m_pGraphic_Device->SetRenderState(D3DRS_FILLMODE, D3DFILL_WIREFRAME);
+	if (FAILED(Set_RenderState()))
+	{
+		MSG_BOX(TEXT("Failed to Set_RenderState : Render"));
+		return E_FAIL;
+	}
+	if (FAILED(m_pVIBuffer_Com->Render()))
+	{
+		MSG_BOX(TEXT("Failed to Render : Render"));
+		return E_FAIL;
+	}
+
+	if (FAILED(Reset_RenderState()))
+	{
+		MSG_BOX(TEXT("Failed to Reset_RenderState : Render"));
+		return E_FAIL;
+	}
+
+
+	return S_OK;
+}
+
+void CBossYeti::Return_Look_Position(_float3* pvLook, _float3* pvPosition)
+{
+	*pvLook = m_pTransform->Get_State(CTransform::STATE_LOOK);
+	*pvPosition = m_pTransform->Get_State(CTransform::STATE_POSITION);
+}
+
+
+void CBossYeti::Set_State(_float fTimeDelta)
+{
+	m_fRollTime += 1.f * fTimeDelta; // 구르는 시간 체크
+
+	if (m_fRollTime >= m_fRollCoolTime && MousePicking())
+	{
+		if ((int)(rand() % 2) == 0)
+		{
+			m_bTurnRight = true;
+		}
+		else
+		{
+			m_bTurnRight = false;
+		}
+		m_fRollTime = 0.f; // 구르기 쿨타임이 돌았으면 0으로 바꿔서 쿨타임이 돌았다고 신호를 준다.
+	}
+
+
+	if (m_eNowState == STATE_ROLL) // 구르는 중일 시 나가기
+		return;
+
+	if (m_fRollTime == 0.f) // 구르기 신호를 받으면 그 즉시 구른다
+	{
+		m_fTexture = 0.f;
+		m_eNowState = STATE_ROLL;
+		m_fTime = 0.f;
+		return;
+	}
+}
+
+void CBossYeti::Do_State(_float fTimeDelta)
+{
+	switch (m_eNowState)
+	{
+	case STATE_SCENE_READY:
+		//m_fMaxHeight
+		//m_fMaxTime
+		//m_vEndPos
+		//m_vBefore_Jump_Pos
+
+		// 보스 브금 시작
+		m_pGameInstance->StopSound(CSound_Manager::CHANNEL_BGM);
+		m_pGameInstance->PlayBGM(L"BossYeti_Battle.wav"); // 이거 넣어야 함
+		m_pGameInstance->VolumeDown(CSound_Manager::CHANNEL_BGM, 0.8f);
+
+
+
+		//m_pCamera->Set_Camera_Mode(CCamera_Player_DW::CAMERA_BOSS);
+			m_pGameInstance->StopSound(CSound_Manager::MONSTER5);
+				m_pGameInstance->PlaySoundW(TEXT("Moo_Fear.wav"), CSound_Manager::MONSTER5, 0.1f);
+
+
+
+		m_pTransform->Set_State(CTransform::STATE_POSITION, _float3(45.f, 150.f, 45.f));
+		m_fMaxHeight = 200.f;
+		m_vEndPos = _float3(25.f, m_fScale.y * 0.5f, 25.f);
+		m_fMaxTime = 1.5f;
+		m_vBefore_Jump_Pos = m_pTransform->Get_State(CTransform::STATE_POSITION);
+		Set_Parabola();
+		CheckPlayer();
+		m_fTime = 0.f;
+		m_fTexture = 0.f;
+		m_eNowState = STATE_SCENE;
+		g_UI = false;
+		break;
+
+	case STATE_SCENE:
+		m_pCamera->Set_Camera_Mode(CCamera_Player_DW::CAMERA_BOSS);
+
+		if (m_pTransform->Get_State(CTransform::STATE_POSITION).y <= m_fScale.y * 0.5f && m_fTime > 0.5f)
+		{
+			// 또는 여기서 보스 브금 시작
+
+			m_pGameInstance->StopSound(CSound_Manager::MONSTER5);
+			m_pGameInstance->PlaySoundW(TEXT("Moo_Fear.wav"), CSound_Manager::MONSTER5, 0.6f);
+
+			m_pGameInstance->StopSound(CSound_Manager::MONSTER4);
+			m_pGameInstance->PlaySoundW(TEXT("Moo_Dive_Attack_00.wav"), CSound_Manager::MONSTER4, 0.7f);
+			//SetUp_OnTerrain(m_fScale.y * 0.5f);
+			//CheckPlayer();
+			//D3DXVec3Normalize(&m_vMonsterLook, &m_vMonsterLook);
+			CEarthQuake::EARTH_QUAKE_DESC EarthQuakeDesc = {};
+
+			EarthQuakeDesc.pTerrainTranformCom = dynamic_cast<CTransform*>(m_pGameInstance->Get_Component(g_eLevel, TEXT("Layer_Terrain"), g_strTransformTag.c_str()));
+			EarthQuakeDesc.pTerrainVIBufferCom = dynamic_cast<CVIBuffer_Terrain*>(m_pGameInstance->Get_Component(g_eLevel, TEXT("Layer_Terrain"), TEXT("Com_VIBuffer")));
+
+			_float4x4 WorldMatrix = *m_pTransform->Get_WorldMatrix();
+
+			EarthQuakeDesc.m_vPos = m_pTransform->Get_State(CTransform::STATE_POSITION);
+			EarthQuakeDesc.m_vPos.y = 0.1f;
+
+			EarthQuakeDesc.m_fLifeTime = 3.f;
+			EarthQuakeDesc.m_fScale = m_fScale.x * 2.f;
+
+			m_pGameInstance->Add_Clone(g_eLevel, TEXT("Layer_Earth_Quake"), TEXT("Prototype_GameObject_Earth_Quake"), &EarthQuakeDesc);
+			m_fTime = 0.f;
+
+			m_pCamera->SetCameraShaking(true);
+			m_eNowState = STATE_SCENE_END;
+			m_fTexture = 0.f;
+			m_fTime = 0.f;
+		}
+		else
+		{
+			Skill_Jump_Attak(fTimeDelta);
+			//CheckPlayer();
+		}
+
+		//if (m_fJump_Attak_Time >= m_fTime)
+		//{
+		//	Skill_Jump_Attak(fTimeDelta);
+		//	CheckPlayer();
+		//}
+		//else
+		//{
+		//	CheckPlayer();
+		//	m_eNowState = STATE_IDLE;
+		//	m_fTexture = 0.f;
+		//	m_fTime = 0.f;
+		//}
+
+		if (m_pTransform->Get_State(CTransform::STATE_POSITION).y <= m_fScale.y * 0.5f && m_fTime > 0.5f)
+		{
+			//SetUp_OnTerrain(m_fScale.y * 0.5f);
+
+			m_pGameInstance->StopSound(CSound_Manager::MONSTER5);
+			m_pGameInstance->PlaySoundW(TEXT("Moo_Fear.wav"), CSound_Manager::MONSTER5, 0.6f);
+
+			m_pGameInstance->StopSound(CSound_Manager::MONSTER4);
+			m_pGameInstance->PlaySoundW(TEXT("Moo_Dive_Attack_00.wav"), CSound_Manager::MONSTER4, 0.7f);
+
+			/*TCHAR	szBuf[256] = L"";
+			swprintf_s(szBuf, L"Moo_Hit_0%d.wav", 3.f);
+			m_pGameInstance->PlaySoundW(szBuf, CSound_Manager::MONSTER5, 0.4f);*/
+			CEarthQuake::EARTH_QUAKE_DESC EarthQuakeDesc = {};
+
+			EarthQuakeDesc.pTerrainTranformCom = dynamic_cast<CTransform*>(m_pGameInstance->Get_Component(g_eLevel, TEXT("Layer_Terrain"), g_strTransformTag.c_str()));
+			EarthQuakeDesc.pTerrainVIBufferCom = dynamic_cast<CVIBuffer_Terrain*>(m_pGameInstance->Get_Component(g_eLevel, TEXT("Layer_Terrain"), TEXT("Com_VIBuffer")));
+
+			_float4x4 WorldMatrix = *m_pTransform->Get_WorldMatrix();
+
+			EarthQuakeDesc.m_vPos = m_pTransform->Get_State(CTransform::STATE_POSITION);
+			EarthQuakeDesc.m_vPos.y = 0.1f;
+			EarthQuakeDesc.m_fLifeTime = 3.f;
+			EarthQuakeDesc.m_fScale = m_fScale.x * 2.f;
+
+			m_pGameInstance->Add_Clone(g_eLevel, TEXT("Layer_Earth_Quake"), TEXT("Prototype_GameObject_Earth_Quake"), &EarthQuakeDesc);
+			m_fTime = 0.f;
+			m_pCamera->SetCameraShaking(true);
+			//CheckPlayer();
+			//D3DXVec3Normalize(&m_vMonsterLook, &m_vMonsterLook);
+			m_eNowState = STATE_SCENE_END;
+			m_fTexture = 0.f;
+			m_fTime = 0.f;
+		}
+		break;
+	case STATE_SCENE_END:
+		if (2.f > m_fTime)
+		{
+			//CheckPlayer();
+			SetUp_OnTerrain(m_fScale.y * 0.5f);
+			if (1.0f < m_fTime)
+				m_pCamera->SetCameraShaking(false);
+		}
+		else
+		{
+			g_UI = true;
+			SetUp_OnTerrain(m_fScale.y * 0.5f);
+			CheckPlayer();
+			m_fTexture = 0.f;
+			m_eNowState = STATE_IDLE;
+			m_fTime = 0.f;
+			m_pCamera->Set_Camera_Mode(CCamera_Player_DW::CAMERA_3VIEW);
+		}
+		break;
+
+	case STATE_IDLE:
+		if (3.f > m_fTime)
+		{
+	
+
+		}
+		else
+		{
+			m_pCamera->SetCameraShaking(false);
+			m_fTexture = 0.f;
+			m_eNowState = STATE_SKILL_READY;
+			m_fTime = 0.f;
+			m_fSkillReadytime = (_float)(rand() % 3);
+			if (m_fSkillReadytime == 0.f)
+			{
+				m_fSkillReadytime = 1.f;
+			}
+			if (!m_bCutScene) // 컷씬을 한 적이 없으면?
+			{
+				m_eNowState = STATE_IDLE;
+
+				/*m_eNowState = STATE_SCENE_READY;
+				m_bCutScene = true;*/
+			}
+		}
+		break;
+
+	case STATE_SKILL_READY:
+	{
+		if (m_fSkillReadytime > m_fTime)
+		{
+			CheckPlayer();
+		}
+		else
+		{
+			// 매 틱마다 연산을 수행하여 어떤 스킬을 사용할 지 골라준다.
+
+			_int iChoice = (_int)(rand() % 4);
+
+			//iChoice = 2; // 실험코드
+
+			switch (iChoice) // 여기에 총스킬 숫자 + 1 개만큼 숫자를 넣어주면 된다.
+			{
+
+			case 0:
+			{
+				m_fTexture = 0.f;
+				m_fMaxHeight = 5.f;
+				m_fMaxTime = 0.2f;
+
+				CTransform* pPlayerTransform = dynamic_cast<CTransform*>(m_pGameInstance->Get_Component(LEVEL_STATIC, TEXT("Layer_Player"), TEXT("Com_Transform")));
+				m_vEndPos = pPlayerTransform->Get_State(CTransform::STATE_POSITION);
+
+				m_vBefore_Jump_Pos = m_pTransform->Get_State(CTransform::STATE_POSITION);
+				Set_Parabola();
+				m_eNowState = STATE_JUMP_ATTAK;
+				CheckPlayer();
+				m_fTime = 0.f;
+				//m_vBeforePos = m_pTransform->Get_State(CTransform::STATE_POSITION); // 이전의 상태값을 넘겨 줌
+				break;
+			}
+
+			case 1:
+				m_fTexture = 0.f;
+				m_eNowState = STATE_ROLL;
+				CheckPlayer();
+				m_fTime = 0.f;
+				m_vBeforePos = m_pTransform->Get_State(CTransform::STATE_POSITION); // 이전의 상태값을 넘겨 줌
+				break;
+
+			case 2:
+				m_fTexture = 0.f;
+				m_eNowState = STATE_GOBOTTOM;
+				CheckPlayer();
+				m_fTime = 0.f;
+				m_vBeforePos = m_pTransform->Get_State(CTransform::STATE_POSITION); // 이전의 상태값을 넘겨 줌
+				break;
+
+			case 3:
+				m_fTexture = 0.f;
+				m_eNowState = STATE_ICE_SPLINTER;
+				m_fTime = 0.f;
+				m_vBeforePos = m_pTransform->Get_State(CTransform::STATE_POSITION); // 이전의 상태값을 넘겨 줌
+				break;
+			default:
+				break;
+			}
+
+			/*		m_fTexture = 0.f;
+					m_eNowState = eRandomSkillSet;
+					CheckPlayer();
+					m_fTime = 0.f;*/
+		}
+		break;
+	}
+
+	case STATE_ROLL:
+		if (m_fRollGo >= m_fTime)
+		{
+			m_pCamera->SetCameraShaking(true);
+			Skill_Roll_Attak(fTimeDelta);
+		}
+		else
+		{
+			m_pCamera->SetCameraShaking(false);
+			m_fTexture = 0.f;
+			m_eNowState = STATE_IDLE;
+			m_fTime = 0.f;
+		}
+		break;
+
+	case STATE_JUMP_ATTAK:
+		if (m_pTransform->Get_State(CTransform::STATE_POSITION).y <= m_fScale.y * 0.5f && m_fTime > 0.1f)
+		{
+			//CheckPlayer();
+			//D3DXVec3Normalize(&m_vMonsterLook, &m_vMonsterLook);
+			CEarthQuake::EARTH_QUAKE_DESC EarthQuakeDesc = {};
+			m_pGameInstance->StopSound(CSound_Manager::MONSTER1);
+			m_pGameInstance->PlaySoundW(TEXT("Moo_Rush_Active.wav"), CSound_Manager::MONSTER1, 0.7f);
+
+
+			m_pGameInstance->StopSound(CSound_Manager::MONSTER2);
+			m_pGameInstance->PlaySoundW(TEXT("Moo_Smash_Active_02.wav"), CSound_Manager::MONSTER2, 0.7f);
+			
+
+			EarthQuakeDesc.pTerrainTranformCom = dynamic_cast<CTransform*>(m_pGameInstance->Get_Component(g_eLevel, TEXT("Layer_Terrain"), g_strTransformTag.c_str()));
+			EarthQuakeDesc.pTerrainVIBufferCom = dynamic_cast<CVIBuffer_Terrain*>(m_pGameInstance->Get_Component(g_eLevel, TEXT("Layer_Terrain"), TEXT("Com_VIBuffer")));
+
+			_float4x4 WorldMatrix = *m_pTransform->Get_WorldMatrix();
+
+			EarthQuakeDesc.m_vPos = m_pTransform->Get_State(CTransform::STATE_POSITION);
+			EarthQuakeDesc.m_fLifeTime = 3.f;
+			EarthQuakeDesc.m_fScale = m_fScale.x * 2.f;
+
+			m_pGameInstance->Add_Clone(g_eLevel, TEXT("Layer_Earth_Quake"), TEXT("Prototype_GameObject_Earth_Quake"), &EarthQuakeDesc);
+			m_fTime = 0.f;
+
+			m_pCamera->SetCameraShaking(true);
+			m_eNowState = STATE_JUMP_ATTAK_END;
+			m_fTexture = 0.f;
+			m_fTime = 0.f;
+		}
+
+		if (m_fJump_Attak_Time >= m_fTime)
+		{
+			Skill_Jump_Attak(fTimeDelta);
+			//CheckPlayer();
+		}
+		else
+		{
+			//CheckPlayer();
+			m_eNowState = STATE_IDLE;
+			m_fTexture = 0.f;
+			m_fTime = 0.f;
+		}
+
+		if (m_pTransform->Get_State(CTransform::STATE_POSITION).y <= m_fScale.y * 0.5f && m_fTime > 0.1f)
+		{
+			CEarthQuake::EARTH_QUAKE_DESC EarthQuakeDesc = {};
+
+			EarthQuakeDesc.pTerrainTranformCom = dynamic_cast<CTransform*>(m_pGameInstance->Get_Component(g_eLevel, TEXT("Layer_Terrain"), g_strTransformTag.c_str()));
+			EarthQuakeDesc.pTerrainVIBufferCom = dynamic_cast<CVIBuffer_Terrain*>(m_pGameInstance->Get_Component(g_eLevel, TEXT("Layer_Terrain"), TEXT("Com_VIBuffer")));
+
+			m_pGameInstance->StopSound(CSound_Manager::MONSTER1);
+			m_pGameInstance->PlaySoundW(TEXT("Moo_Rush_Active.wav"), CSound_Manager::MONSTER4, 0.7f);
+
+			m_pGameInstance->StopSound(CSound_Manager::MONSTER2);
+			m_pGameInstance->PlaySoundW(TEXT("Moo_Smash_Active_02.wav"), CSound_Manager::MONSTER2, 0.7f);
+
+			_float4x4 WorldMatrix = *m_pTransform->Get_WorldMatrix();
+
+			EarthQuakeDesc.m_vPos = m_pTransform->Get_State(CTransform::STATE_POSITION);
+			EarthQuakeDesc.m_fLifeTime = 3.f;
+			EarthQuakeDesc.m_fScale = m_fScale.x * 2.f;
+
+			m_pGameInstance->Add_Clone(g_eLevel, TEXT("Layer_Earth_Quake"), TEXT("Prototype_GameObject_Earth_Quake"), &EarthQuakeDesc);
+			m_fTime = 0.f;
+			m_pCamera->SetCameraShaking(true);
+			//CheckPlayer();
+			//D3DXVec3Normalize(&m_vMonsterLook, &m_vMonsterLook);
+			m_eNowState = STATE_JUMP_ATTAK_END;
+			m_fTexture = 0.f;
+			m_fTime = 0.f;
+		}
+
+		break;
+	case STATE_JUMP_ATTAK_END:
+		if (1.5f > m_fTime)
+		{
+			CheckPlayer();
+			if (0.5f < m_fTime)
+				m_pCamera->SetCameraShaking(false);
+		}
+		else
+		{
+			CheckPlayer();
+			m_fTexture = 0.f;
+			m_eNowState = STATE_IDLE;
+			m_fTime = 0.f;
+		}
+		break;
+
+	case STATE_GOBOTTOM:
+		if (m_iBottomNum > m_iBottomNumPlus)
+		{
+			Skill_GoBottom(fTimeDelta);
+		}
+		else
+		{
+			CheckPlayer();
+			m_fTexture = 0.f;
+			m_eNowState = STATE_IDLE;
+			m_fTime = 0.f;
+			m_iBottomNumPlus = 0;
+		}
+		break;
+	case STATE_ICE_SPLINTER:
+		if (m_fTime <= 0.8f)
+		{
+
+		}
+		else if (!m_bIceSplinterSkill)
+		{
+			Skill_UpIceSplinter(fTimeDelta);
+			m_bIceSplinterSkill = true;
+		}
+		else
+		{
+			m_fTexture = 0.f;
+			m_eNowState = STATE_SKILL_READY;
+			m_fTime = 0.f;
+			m_iBottomNumPlus = 0;
+			m_bIceSplinterSkill = false;
+		}
+		break;
+
+	case STATE_DEATH:
+		if (5.f >= m_fTime)
+		{
+			if (m_fTime == 0.f)
+			{
+				m_pGameInstance->StopAll();
+				m_pGameInstance->StopSound(CSound_Manager::MONSTER5);
+				m_pGameInstance->PlaySoundW(TEXT("Moo_Death.wav"), CSound_Manager::MONSTER5, 0.2f);
+			}
+			if (m_fTime > 4.f && !m_bEndMusic)
+			{
+				m_pGameInstance->StopSound(CSound_Manager::CHANNEL_BGM);
+				m_pGameInstance->PlayBGM(L"End_BGM.wav");
+				m_pGameInstance->VolumeDown(CSound_Manager::CHANNEL_BGM, 0.01f);
+				m_bEndMusic = true;
+			}
+		}
+		else
+		{
+			// 여기다 넣어라
+			m_fTexture = 0.f;
+			m_bDeadShow = true;
+			m_fTime = 0.f;
+		}
+		break;
+	case STATE_END:
+
+		break;
+
+	default:
+
+		break;
+	}
+	m_fTime += fTimeDelta;
+
+}
+
+	void CBossYeti::Set_Render_Texture(_float fTimeDelta)
+	{
+		// 상태에 따라 텍스쳐를 설정해준다.
+		if (m_eNowState == STATE_ROLL)
+		{
+			m_pTextureCom = m_pTextureRoll;
+			m_fTextureMaxPicture = 2.f;
+			m_fTextureSpeed = m_fTextureSpeed_Roll;
+
+			// 임시
+
+		}
+
+		if (m_eNowState == STATE_IDLE || m_pTextureCom == m_pTextureIdle)
+		{
+			m_pTextureCom = m_pTextureIdle;
+			m_fTextureMaxPicture = 2.f;
+			m_fTextureSpeed = m_fTextureSpeed_Idle;
+			// 임시
+			//m_fTextureDir = 0;
+		}
+
+		if (m_pTextureCom == m_pTextureGoBottom)
+		{
+
+			m_fTextureMaxPicture = 0.f;
+			// 임시
+			//m_fTextureDir = 0;
+		}
+
+		if (m_pTextureCom == m_pTextureUpBottom)
+		{
+
+			m_fTextureMaxPicture = 0.f;
+			// 임시
+			//m_fTextureDir = 0;
+		}
+
+		if (m_eNowState == STATE_JUMP_ATTAK)
+		{
+			m_pTextureCom = m_pTextureJumpAttak;
+			m_fTextureMaxPicture = 2.f;
+			m_fTextureSpeed = m_fTextureSpeed_JumpAttak;
+
+			// 임시
+			//m_fTextureDir = 0;
+		}
+
+		if (m_eNowState == STATE_JUMP_ATTAK_END)
+		{
+			m_pTextureCom = m_pTextureJumpAttakEnd;
+			m_fTextureMaxPicture = 1.f;
+			m_fTextureSpeed = m_fTextureSpeed_JumpAttakEnd;
+
+			// 임시
+			//m_fTextureDir = 0;
+		}
+
+		if (m_eNowState == STATE_SCENE)
+		{
+			m_pTextureCom = m_pTextureJumpAttak;
+			m_fTextureMaxPicture = 2.f;
+			m_fTextureSpeed = 1.f / (m_fMaxTime * 2.f);
+
+			// 임시
+			//m_fTextureDir = 0;
+		}
+
+		if (m_eNowState == STATE_SCENE_END)
+		{
+			m_pTextureCom = m_pTextureJumpAttakEnd;
+			m_fTextureMaxPicture = 1.f;
+			m_fTextureSpeed = m_fTextureSpeed_JumpAttakEnd;
+
+			// 임시
+			//m_fTextureDir = 0;
+		}
+
+		if (m_eNowState == STATE_ICE_SPLINTER)
+		{
+			m_pTextureCom = m_pTextureJumpAttak;
+			m_fTextureMaxPicture = 2.f;
+			m_fTextureSpeed = m_fTextureSpeed_SkillSplinter;
+
+			// 임시
+			//m_fTextureDir = 0;
+		}
+
+		if (m_eNowState == STATE_SKILL_READY)
+		{
+			m_pGameInstance->StopSound(CSound_Manager::MONSTER5);
+			m_pGameInstance->PlaySoundW(TEXT("Moo_Harvest_Start.wav"), CSound_Manager::MONSTER5, 0.4f);
+
+			m_pTextureCom = m_pTextureSkillReady;
+			m_fTextureMaxPicture = 0.f;
+			m_fTextureSpeed = m_fTextureSpeed_SkillReady;
+
+			// 임시
+			//m_fTextureDir = 0;
+		}
+
+		if (m_eNowState == STATE_DEATH)
+		{
+
+			m_pTextureCom = m_pTextureDeath;
+			m_fTextureMaxPicture = 2.f;
+			m_fTextureSpeed = m_fTextureSpeed_Death;
+
+			// 임시
+			//m_fTextureDir = 0;
+		}
+
+
+
+		// 시간에 따라 텍스쳐를 설정해 준다.
+		m_fTexture += m_fTextureMaxPicture * fTimeDelta * m_fTextureSpeed;
+		if (m_fTexture >= m_fTextureMaxPicture)
+		{
+			m_fTexture = 0;
+		}
+
+		m_fTextureDir = m_fTextureDir * (m_fTextureMaxPicture + 1);
+
+
+		// 방향에 따라 텍스쳐를 설정해준다.
+		m_fTextureTotal = m_fTexture + m_fTextureDir;
+	}
+
+void CBossYeti::CheckPlayer()
+{
+	const CTransform* pPlayerTransform = dynamic_cast<CTransform*>(m_pGameInstance->Get_Component(LEVEL_STATIC, TEXT("Layer_Player"), TEXT("Com_Transform")));
+
+	_float3 fCheck = { pPlayerTransform->Get_State(CTransform::STATE_POSITION) - m_pTransform->Get_State(CTransform::STATE_POSITION) };
+
+	m_vMonsterLook = fCheck;
+
+	m_fJump_Attak_Speed = D3DXVec3Length(&m_vMonsterLook) / m_fJump_Attak_Time; // 길이를 시간으로 나눈 값
+}
+
+HRESULT CBossYeti::Add_Components()
+{	/* For.Com_VIBuffer */
+	if (FAILED(__super::Add_Component(LEVEL_STATIC, TEXT("Prototype_Component_VIBuffer_Rect"), TEXT("Com_VIBuffer"), reinterpret_cast<CComponent**>(&m_pVIBuffer_Com))))
+	{
+		MSG_BOX(TEXT("Failed to Prototype_Component_VIBuffer_Rect : Add_Components"));
+		return E_FAIL;
+	}
+
+
+	//State추가
+	CState::STATE_DESC StateDest = {};
+	StateDest.fCP = 1.f;
+	StateDest.fMaxHp = 3000.f;
+	/* For. Com_State*/
+	if (FAILED(__super::Add_Component(LEVEL_STATIC, TEXT("Prototype_Component_State"), TEXT("Com_State"), reinterpret_cast<CComponent**>(&m_pState_Com), &StateDest)))
+	{
+		MSG_BOX(TEXT("Failed to Prototype_Component_State : Add_Components"));
+		return E_FAIL;
+	}
+
+	/* For.Com_Texture */
+	//if (FAILED(__super::Add_Component(LEVEL_TUTORIAL, TEXT("Prototype_Component_Texture_PlayerBack"), TEXT("Com_Texture"), reinterpret_cast<CComponent**>(&m_pTextureCom))))
+	//{
+	//	MSG_BOX(TEXT("Failed to Prototype_Component_Texture_PlayerBack : Add_Components"));
+	//	return E_FAIL;
+	//}
+	/* For.Com_Texture */
+
+	if (FAILED(__super::Add_Component(g_eLevel, TEXT("Prototype_Component_Texture_Boss_Yeti_Idle"), TEXT("Com_Texture_Idle"), reinterpret_cast<CComponent**>(&m_pTextureIdle))))
+	{
+		MSG_BOX(TEXT("Failed to Prototype_Component_Texture_Boss_Yeti_Idle : Add_Components"));
+		return E_FAIL;
+	}
+	if (FAILED(__super::Add_Component(g_eLevel, TEXT("Prototype_Component_Texture_Boss_Yeti_SkillReady"), TEXT("Com_Texture_SkillReady"), reinterpret_cast<CComponent**>(&m_pTextureSkillReady))))
+	{
+		MSG_BOX(TEXT("Failed to Prototype_Component_Texture_Boss_Yeti_SkillReady : Add_Components"));
+		return E_FAIL;
+	}
+	if (FAILED(__super::Add_Component(g_eLevel, TEXT("Prototype_Component_Texture_Boss_Yeti_RollAttak"), TEXT("Com_Texture_Roll"), reinterpret_cast<CComponent**>(&m_pTextureRoll))))
+	{
+		MSG_BOX(TEXT("Failed to Prototype_Component_Texture_Boss_Yeti_RollAttak : Add_Components"));
+		return E_FAIL;
+	}
+	if (FAILED(__super::Add_Component(g_eLevel, TEXT("Prototype_Component_Texture_Boss_Yeti_JumpAttak"), TEXT("Com_Texture_JumpAttak"), reinterpret_cast<CComponent**>(&m_pTextureJumpAttak))))
+	{
+		MSG_BOX(TEXT("Failed to Prototype_Component_Texture_Boss_Yeti_JumpAttak : Add_Components"));
+		return E_FAIL;
+	}
+	if (FAILED(__super::Add_Component(g_eLevel, TEXT("Prototype_Component_Texture_Boss_Yeti_JumpAttakEnd"), TEXT("Com_Texture_JumpAttakEnd"), reinterpret_cast<CComponent**>(&m_pTextureJumpAttakEnd))))
+	{
+		MSG_BOX(TEXT("Failed to Prototype_Component_Texture_Boss_Yeti_JumpAttakEnd : Add_Components"));
+		return E_FAIL;
+	}
+	if (FAILED(__super::Add_Component(g_eLevel, TEXT("Prototype_Component_Texture_Boss_Yeti_GoBottom"), TEXT("Com_Texture_GoBottom"), reinterpret_cast<CComponent**>(&m_pTextureGoBottom))))
+	{
+		MSG_BOX(TEXT("Failed to Prototype_Component_Texture_Boss_Yeti_GoBottom : Add_Components"));
+		return E_FAIL;
+	}
+	if (FAILED(__super::Add_Component(g_eLevel, TEXT("Prototype_Component_Texture_Boss_Yeti_UpBottom"), TEXT("Com_Texture_UpBottom"), reinterpret_cast<CComponent**>(&m_pTextureUpBottom))))
+	{
+		MSG_BOX(TEXT("Failed to Prototype_Component_Texture_Boss_Yeti_UpBottom : Add_Components"));
+		return E_FAIL;
+	}
+	if (FAILED(__super::Add_Component(g_eLevel, TEXT("Prototype_Component_Texture_Boss_Yeti_Death"), TEXT("Com_Texture_Death"), reinterpret_cast<CComponent**>(&m_pTextureDeath))))
+	{
+		MSG_BOX(TEXT("Failed to Prototype_Component_Texture_Boss_Yeti_Death : Add_Components"));
+		return E_FAIL;
+	}
+
+	/* For.Com_Collider */
+	if (FAILED(__super::Add_Component(LEVEL_STATIC, TEXT("Prototype_Component_Collider_Rect"), TEXT("Com_Collider"), reinterpret_cast<CComponent**>(&m_pCollider_Com[COLLIDER_RECT]))))
+	{
+		MSG_BOX(TEXT("Failed to Prototype_Component_Collider_Rect : Add_Components"));
+		return E_FAIL;
+	}
+	/* For.Com_Collider */
+	if (FAILED(__super::Add_Component(LEVEL_STATIC, TEXT("Prototype_Component_Texture_Collider"), TEXT("Com_Texture_Collider"), reinterpret_cast<CComponent**>(&m_pTextureCollider))))
+	{
+		MSG_BOX(TEXT("Failed to Prototype_Component_Collider_Rect : Add_Components"));
+		return E_FAIL;
+	}
+
+	return S_OK;
+}
+
+
+HRESULT CBossYeti::Set_RenderState()
+{
+	if (FAILED(m_pGraphic_Device->SetSamplerState(0, D3DSAMP_MINFILTER, D3DTEXF_LINEAR)))
+	{
+		MSG_BOX(TEXT("Failed to SetSamplerState : D3DSAMP_MINFILTER"));
+		return E_FAIL;
+	}
+	if (FAILED(m_pGraphic_Device->SetSamplerState(0, D3DSAMP_MAGFILTER, D3DTEXF_LINEAR)))
+	{
+		MSG_BOX(TEXT("Failed to SetSamplerState : D3DSAMP_MAGFILTER"));
+		return E_FAIL;
+	}
+	if (FAILED(m_pGraphic_Device->SetSamplerState(0, D3DSAMP_MIPFILTER, D3DTEXF_LINEAR)))
+	{
+		MSG_BOX(TEXT("Failed to SetSamplerState : D3DSAMP_MIPFILTER"));
+		return E_FAIL;
+	}
+
+	if (FAILED(m_pGraphic_Device->SetRenderState(D3DRS_ALPHATESTENABLE, TRUE)))
+	{
+		MSG_BOX(TEXT("Failed to SetRenderState : D3DRS_ALPHATESTENABLE"));
+		return E_FAIL;
+	}
+	if (FAILED(m_pGraphic_Device->SetRenderState(D3DRS_ALPHAREF, 200))) // 테스트 할 알파값
+	{
+		MSG_BOX(TEXT("Failed to SetRenderState : D3DRS_ALPHAREF"));
+		return E_FAIL;
+	}
+	if (FAILED(m_pGraphic_Device->SetRenderState(D3DRS_ALPHAFUNC, D3DCMP_GREATER)))
+	{
+		MSG_BOX(TEXT("Failed to SetRenderState : D3DRS_ALPHAFUNC"));
+		return E_FAIL;
+	}
+	return S_OK;
+}
+
+HRESULT CBossYeti::Reset_RenderState()
+{
+	if (FAILED(m_pGraphic_Device->SetRenderState(D3DRS_ALPHATESTENABLE, FALSE)))
+	{
+		MSG_BOX(TEXT("Failed to SetRenderState : D3DRS_ALPHATESTENABLE"));
+		return E_FAIL;
+	}
+
+	if (FAILED(m_pGraphic_Device->SetSamplerState(0, D3DSAMP_MINFILTER, D3DTEXF_LINEAR)))
+	{
+		MSG_BOX(TEXT("Failed to SetSamplerState : D3DSAMP_MINFILTER"));
+		return E_FAIL;
+	}
+	if (FAILED(m_pGraphic_Device->SetSamplerState(0, D3DSAMP_MAGFILTER, D3DTEXF_LINEAR)))
+	{
+		MSG_BOX(TEXT("Failed to SetSamplerState : D3DSAMP_MAGFILTER"));
+		return E_FAIL;
+	}
+	if (FAILED(m_pGraphic_Device->SetSamplerState(0, D3DSAMP_MIPFILTER, D3DTEXF_LINEAR)))
+	{
+		MSG_BOX(TEXT("Failed to SetSamplerState : D3DSAMP_MIPFILTER"));
+		return E_FAIL;
+	}
+	return S_OK;
+}
+
+void CBossYeti::SetUp_BillBoard()
+{
+	//CTransform* pCameraTransformCom = dynamic_cast<CTransform*>(m_pGameInstance->Get_Component(LEVEL_TUTORIAL, TEXT("Layer_Camera_Free"), g_strTransformTag));
+	if (nullptr == m_pDWCameraTransform)
+	{
+		m_pDWCameraTransform = dynamic_cast<CTransform*>(m_pCamera->Get_Component(g_strTransformTag));
+		if (nullptr != m_pDWCameraTransform)
+			Safe_AddRef(m_pDWCameraTransform);
+	}
+		
+
+	if (nullptr == m_pDWCameraTransform)
+	{
+		MSG_BOX(TEXT("nullptr == pCameraTransformCom : CBossYeti::SetUp_BillBoard()"));
+		return;
+	}
+
+	const _float4x4 pCameraWorldMatrix = *m_pDWCameraTransform->Get_WorldMatrix();
+
+
+	_float3 vScale = m_pTransform->Get_Scale();
+
+	m_pTransform->Set_State(CTransform::STATE_RIGHT, *D3DXVec3Normalize((_float3*)&pCameraWorldMatrix.m[CTransform::STATE_RIGHT][0], (_float3*)&pCameraWorldMatrix.m[CTransform::STATE_RIGHT][0]) * vScale.x);
+	//m_pTransform->Set_State(CTransform::STATE_UP, *D3DXVec3Normalize((_float3*)&pCameraWorldMatrix.m[CTransform::STATE_UP][0], &_float3(0.f,1.f,0.f) ) * vScale.y);
+
+	_float3 vLook = *D3DXVec3Cross(&vLook, D3DXVec3Normalize((_float3*)&pCameraWorldMatrix.m[CTransform::STATE_RIGHT][0], (_float3*)&pCameraWorldMatrix.m[CTransform::STATE_RIGHT][0]), &_float3(0.f, 1.f, 0.f));
+	_float3 Right = *D3DXVec3Cross(&Right,&_float3(0.f, 1.f, 0.f), &vLook);
+
+	m_pTransform->Set_State(CTransform::STATE_RIGHT, Right * vScale.x);
+
+	m_pTransform->Set_State(CTransform::STATE_LOOK, vLook * vScale.z);
+
+	m_pTransform->Set_State(CTransform::STATE_UP, _float3(0.f, 1.f, 0.f) * vScale.y);
+	
+	//m_pTransform->Set_State(CTransform::STATE_UP, *D3DXVec3Normalize((_float3*)&pCameraWorldMatrix.m[CTransform::STATE_UP][0], (_float3*)&pCameraWorldMatrix.m[CTransform::STATE_UP][0]) * vScale.y);
+	//m_pTransform->Set_State(CTransform::STATE_LOOK, *D3DXVec3Normalize((_float3*)&pCameraWorldMatrix.m[CTransform::STATE_LOOK][0], (_float3*)&pCameraWorldMatrix.m[CTransform::STATE_LOOK][0]) * vScale.z);
+
+	if (m_eNowState == STATE_SCENE)
+	{
+		m_pTransform->Set_State(CTransform::STATE_RIGHT, *D3DXVec3Normalize((_float3*)&pCameraWorldMatrix.m[CTransform::STATE_RIGHT][0], (_float3*)&pCameraWorldMatrix.m[CTransform::STATE_RIGHT][0]) * vScale.x);
+		m_pTransform->Set_State(CTransform::STATE_UP, *D3DXVec3Normalize((_float3*)&pCameraWorldMatrix.m[CTransform::STATE_UP][0], (_float3*)&pCameraWorldMatrix.m[CTransform::STATE_UP][0]) * vScale.y);
+		m_pTransform->Set_State(CTransform::STATE_LOOK, *D3DXVec3Normalize((_float3*)&pCameraWorldMatrix.m[CTransform::STATE_LOOK][0], (_float3*)&pCameraWorldMatrix.m[CTransform::STATE_LOOK][0]) * vScale.z);
+	}
+
+	/*m_pTransform->Set_State(CTransform::STATE_RIGHT, *(_float3*)&pCameraWorldMatrix.m[CTransform::STATE_RIGHT][0]);
+	m_pTransform->Set_State(CTransform::STATE_LOOK, *(_float3*)&pCameraWorldMatrix.m[CTransform::STATE_LOOK][0]);*/
+}
+
+void CBossYeti::Look_Camera_Fixed_Y_Axis()
+{
+	//CTransform* pCameraTransformCom = dynamic_cast<CTransform*>(m_pGameInstance->Get_Component(LEVEL_TUTORIAL, TEXT("Layer_Camera_Free"), g_strTransformTag));
+	if (nullptr == m_pDWCameraTransform)
+	{
+		m_pDWCameraTransform = dynamic_cast<CTransform*>(m_pCamera->Get_Component(g_strTransformTag));
+		if (nullptr != m_pDWCameraTransform)
+			Safe_AddRef(m_pDWCameraTransform);
+	}
+
+	if (nullptr == m_pDWCameraTransform)
+	{
+		MSG_BOX(TEXT("nullptr == pCameraTransformCom : CBossYeti::SetUp_BillBoard()"));
+		return;
+	}
+
+	const _float4x4 pCameraWorldMatrix = *m_pDWCameraTransform->Get_WorldMatrix();
+	_float3 vCameraPos = m_pDWCameraTransform->Get_State(CTransform::STATE_POSITION);
+
+	_float3 vScale = m_pTransform->Get_Scale();
+
+	//_float3 vLook = vCameraPos - m_pTransform->Get_State(CTransform::STATE_POSITION);
+	_float3 vLook = m_pTransform->Get_State(CTransform::STATE_POSITION) - vCameraPos;
+	//vLook = *D3DXVec3Normalize(&vLook, &vLook) * vScale.z;
+	_float3 vUp = { 0.f,1.f,0.f };
+	vUp *= vScale.y;
+	_float3 vRight = *D3DXVec3Cross(&vRight, &vUp, &vLook);
+	vRight = *D3DXVec3Normalize(&vRight, &vRight) * vScale.x;
+	vLook = *D3DXVec3Cross(&vLook, &vRight, &vUp);
+	vLook = *D3DXVec3Normalize(&vLook, &vLook) * vScale.z;
+
+	m_pTransform->Set_State(CTransform::STATE_RIGHT, vRight);
+	m_pTransform->Set_State(CTransform::STATE_UP, vUp);
+	m_pTransform->Set_State(CTransform::STATE_LOOK, vLook);
+	
+	if (m_eNowState == STATE_SCENE)
+	{
+		CTransform* pCameraTransformCom = dynamic_cast<CTransform*>(m_pGameInstance->Get_Component(g_eLevel, TEXT("Layer_Camera_Player"), g_strTransformTag));
+		const _float4x4 pCameraWorldMatrix = *pCameraTransformCom->Get_WorldMatrix();
+
+
+		_float3 vScale = m_pTransform->Get_Scale();
+
+		m_pTransform->Set_State(CTransform::STATE_RIGHT, *D3DXVec3Normalize((_float3*)&pCameraWorldMatrix.m[CTransform::STATE_RIGHT][0], (_float3*)&pCameraWorldMatrix.m[CTransform::STATE_RIGHT][0]) * vScale.x);
+		m_pTransform->Set_State(CTransform::STATE_UP, *D3DXVec3Normalize((_float3*)&pCameraWorldMatrix.m[CTransform::STATE_UP][0], (_float3*)&pCameraWorldMatrix.m[CTransform::STATE_UP][0]) * vScale.y);
+		m_pTransform->Set_State(CTransform::STATE_LOOK, *D3DXVec3Normalize((_float3*)&pCameraWorldMatrix.m[CTransform::STATE_LOOK][0], (_float3*)&pCameraWorldMatrix.m[CTransform::STATE_LOOK][0]) * vScale.z);
+	}
+
+
+}
+
+void CBossYeti::Chase_Player(_float fTimeDelta, _float Min_Distance)
+{
+	const CTransform* pTransform = dynamic_cast<const CTransform*>(m_pGameInstance->Get_Component(LEVEL_STATIC, TEXT("Layer_Player"), g_strTransformTag));
+
+	_float3 vPosition = pTransform->Get_State(CTransform::STATE_POSITION);
+	vPosition.y = pTransform->Get_State(CTransform::STATE_POSITION).y + m_fScale.y;
+	m_pTransform->LookAt_LandObject(vPosition);
+
+	m_pTransform->Move_To_Target(vPosition, fTimeDelta, Min_Distance);
+}
+
+void CBossYeti::Skill_Jump_Attak(_float fTimeDelta)
+{
+
+	m_vGoPos.x = m_vBefore_Jump_Pos.x + m_fV_X * m_fTime;
+	m_vGoPos.y = m_vBefore_Jump_Pos.y + (m_fV_Y * m_fTime) - (0.5f * m_fG * m_fTime * m_fTime);
+	m_vGoPos.z = m_vBefore_Jump_Pos.z + m_fV_Z * m_fTime;
+
+	m_pTransform->Set_State(CTransform::STATE_POSITION, m_vGoPos);
+}
+
+void CBossYeti::Skill_Roll_Attak(_float fTimeDelta)
+{
+	m_fSnowTime += fTimeDelta; // 시간을 구함
+	_uint iRand = rand() % 4;
+	// 이동
+	D3DXVec3Normalize(&m_vMonsterLook, &m_vMonsterLook);
+	m_vMonsterLook = m_vMonsterLook * (m_fRollSpeed * fTimeDelta);
+	m_pTransform->Set_State(CTransform::STATE_POSITION,
+		_float3(m_pTransform->Get_State(CTransform::STATE_POSITION).x + m_vMonsterLook.x,
+			m_pTransform->Get_State(CTransform::STATE_POSITION).y,
+			m_pTransform->Get_State(CTransform::STATE_POSITION).z + m_vMonsterLook.z));
+
+	// 눈 생성
+	if (m_fSnowTime >= 0.2f)
+	{
+		// 양수를 넣으면 몬스터가 구르는 방향의 오른쪽 음수면 왼쪽으로 던진다.
+		m_pGameInstance->StopSound(CSound_Manager::MONSTER4);
+
+		TCHAR	szBuf[256] = L"";
+		swprintf_s(szBuf, L"footstep_0%d.wav", iRand);
+		m_pGameInstance->PlaySoundW(szBuf, CSound_Manager::MONSTER4, 0.3f);
+
+		m_pGameInstance->PlaySoundW(TEXT("Moo_Harvest_Loop.wav"), CSound_Manager::MONSTER5, 0.15f);
+
+		CSnow::SNOW_DESC SnowDesc = {};
+		
+		SnowDesc.pTerrainTranformCom = dynamic_cast<CTransform*>(m_pGameInstance->Get_Component(g_eLevel, TEXT("Layer_Terrain"), g_strTransformTag.c_str()));
+		SnowDesc.pTerrainVIBufferCom = dynamic_cast<CVIBuffer_Terrain*>(m_pGameInstance->Get_Component(g_eLevel, TEXT("Layer_Terrain"), TEXT("Com_VIBuffer")));
+		
+
+		SnowDesc.m_vLook = m_vMonsterLook;
+		SnowDesc.m_vPos = m_pTransform->Get_State(CTransform::STATE_POSITION);
+		SnowDesc.m_fSpeed = 10.f;
+		SnowDesc.m_iTexNum = 0;
+		SnowDesc.m_fScale = 1.f;
+
+		m_pGameInstance->Add_Clone(g_eLevel,TEXT("Layer_Bullet"),TEXT("Prototype_GameObject_Snow"), &SnowDesc);
+
+		SnowDesc.m_vLook = -m_vMonsterLook;
+		m_pGameInstance->Add_Clone(g_eLevel, TEXT("Layer_Bullet"), TEXT("Prototype_GameObject_Snow"), &SnowDesc);
+		m_fSnowTime = 0.f;
+	}
+
+}
+
+void CBossYeti::Skill_GoBottom(_float fTimeDelta)
+{
+	// 여기로 들어오기 전에 해야할 것
+	// 보스 텍스쳐 숨쉬기로 바꾸고
+	// 들어갈 때 팔 드는 걸로 바꾸기
+
+	//SetUp_BillBoard();
+
+	switch (m_iGoBottom)
+	{
+	case 0:
+		if (m_fGoBottomTime <= 1.5f) // 대기 시간
+		{
+			m_pTextureCom = m_pTextureIdle;
+			CheckPlayer();
+			//m_pTextureCom = m_pTextureIdle;
+		}
+		else
+		{
+			m_pTextureCom = m_pTextureGoBottom;
+			m_fGoBottomTime = 0.f;
+			m_fTexture = 0.f;
+			++m_iGoBottom;
+		}
+		break;
+	case 1:
+		
+		if (m_fGoBottomTime <= 0.5f) // 땅속으로 들어가기
+		{
+			m_pGameInstance->StopSound(CSound_Manager::MONSTER1);
+			m_pGameInstance->PlaySoundW(TEXT("Moo_Dive_Start.wav"), CSound_Manager::MONSTER1, 0.6f);
+			
+	/*		m_bGoBottom = true;
+			_float3 vLook = m_pTransform->Get_State(CTransform::STATE_LOOK);
+			_float3 vRight = m_pTransform->Get_State(CTransform::STATE_RIGHT);
+			_float3 vUp = {};
+			vLook = *D3DXVec3Cross(&vLook, &vRight,&_float3(0.f,1.f,0.f));
+			m_pTransform->Set_State(CTransform::STATE_LOOK, vLook);
+			m_pTransform->Set_State(CTransform::STATE_UP, vLook);
+
+			m_pTransform->Turn(*D3DXVec3Normalize(&vLook, &vLook), D3DXToRadian(80.f * fTimeDelta));*/
+			m_pTransform->Go_Up(m_fGoBottomSpeed * fTimeDelta *0.5f);
+			
+		}
+		else if (m_fGoBottomTime <= 1.5f)
+		{
+			/*m_pGameInstance->StopSound(CSound_Manager::MONSTER3);
+			m_pGameInstance->PlaySoundW(TEXT("Moo_Dive_End.wav"), CSound_Manager::MONSTER3, 0.6f);*/
+
+		/*	m_bGoBottom = true;
+			_float3 vLook = m_pTransform->Get_State(CTransform::STATE_LOOK);
+			_float3 vRight = m_pTransform->Get_State(CTransform::STATE_RIGHT);
+			vLook = *D3DXVec3Cross(&vLook, &vRight, &_float3(0.f, 1.f, 0.f));
+			m_pTransform->Set_State(CTransform::STATE_LOOK, vLook);
+			m_pTransform->Turn(*D3DXVec3Normalize(&vLook, &vLook), D3DXToRadian(80.f * fTimeDelta));*/
+			m_pTransform->Go_Down(m_fGoBottomSpeed * 2.f * fTimeDelta);
+		
+		}
+		else if (!m_bSnowBottom) // 들어가는 중간에 눈 뿌리기
+		{
+			CSnow::SNOW_DESC SnowDesc = {};
+
+			SnowDesc.pTerrainTranformCom = dynamic_cast<CTransform*>(m_pGameInstance->Get_Component(g_eLevel, TEXT("Layer_Terrain"), g_strTransformTag.c_str()));
+			SnowDesc.pTerrainVIBufferCom = dynamic_cast<CVIBuffer_Terrain*>(m_pGameInstance->Get_Component(g_eLevel, TEXT("Layer_Terrain"), TEXT("Com_VIBuffer")));
+
+			_float4x4 WorldMatrix = *m_pTransform->Get_WorldMatrix();
+
+			SnowDesc.m_vPos = m_pTransform->Get_State(CTransform::STATE_POSITION);
+			SnowDesc.m_fSpeed = 40.f;
+			SnowDesc.m_iTexNum = 0;
+
+
+			for (_int i = 0; i < 20; ++i) // 눈 20개 생성
+			{
+				D3DXMatrixRotationAxis(&WorldMatrix, &_float3(0.f, 1.f, 0.f), (18.f * i));
+				SnowDesc.m_fScale = ((rand() % 11) / 10.f);
+				// 예외처리
+				if (SnowDesc.m_fScale == 0)
+				{
+					SnowDesc.m_fScale = 0.5f;
+				}
+				SnowDesc.m_vLook = *(_float3*)&WorldMatrix.m[2][0];
+				m_pGameInstance->Add_Clone(g_eLevel, TEXT("Layer_Bullet"), TEXT("Prototype_GameObject_Snow"), &SnowDesc);
+
+			}
+
+			SnowDesc.m_fSpeed = 20.f;
+			for (_int i = 0; i < 20; ++i) // 눈 20개 생성
+			{
+				D3DXMatrixRotationAxis(&WorldMatrix, &_float3(0.f, 1.f, 0.f), (6.f + (18.f * i)));
+				SnowDesc.m_fScale = ((rand() % 11) / 10.f);
+				// 예외처리
+				if (SnowDesc.m_fScale == 0)
+				{
+					SnowDesc.m_fScale = 0.5f;
+				}
+				SnowDesc.m_vLook = *(_float3*)&WorldMatrix.m[2][0];
+				m_pGameInstance->Add_Clone(g_eLevel, TEXT("Layer_Bullet"), TEXT("Prototype_GameObject_Snow"), &SnowDesc);
+
+			}
+
+			SnowDesc.m_fSpeed = 10.f;
+			for (_int i = 0; i < 20; ++i) // 눈 20개 생성
+			{
+				D3DXMatrixRotationAxis(&WorldMatrix, &_float3(0.f, 1.f, 0.f), (12.f + (18.f * i)));
+				SnowDesc.m_fScale = ((rand() % 11) / 10.f);
+				// 예외처리
+				if (SnowDesc.m_fScale == 0)
+				{
+					SnowDesc.m_fScale = 0.5f;
+				}
+				SnowDesc.m_vLook = *(_float3*)&WorldMatrix.m[2][0];
+				m_pGameInstance->Add_Clone(g_eLevel, TEXT("Layer_Bullet"), TEXT("Prototype_GameObject_Snow"), &SnowDesc);
+
+			}
+
+
+			m_bSnowBottom = true;
+		}
+		else
+		{
+			
+			m_bGoBottom = false;
+			m_fGoBottomTime = 0.f;
+			m_fTexture = 0.f;
+			++m_iGoBottom;
+			m_bSnowBottom = false;
+		}
+		break;
+
+	case 2:
+		if (m_fGoBottomTime <= 1.f) // 나올곳에 주의표시 하는 곳
+		{
+			CheckPlayer();
+			CTransform* pPlayerTransform = (CTransform*)m_pGameInstance->Get_Component(LEVEL_STATIC, TEXT("Layer_Player"), g_strTransformTag);
+			m_pTransform->Set_State(CTransform::STATE_POSITION,
+				_float3(pPlayerTransform->Get_State(CTransform::STATE_POSITION).x,
+					pPlayerTransform->Get_State(CTransform::STATE_POSITION).y - m_fGoBottomSpeed,
+					pPlayerTransform->Get_State(CTransform::STATE_POSITION).z));
+		}
+		else
+		{
+			CheckPlayer();
+
+			CRedCircle::RED_CIRCLE_DESC RedCircleDesc = {};
+
+			RedCircleDesc.pTerrainTranformCom = dynamic_cast<CTransform*>(m_pGameInstance->Get_Component(g_eLevel, TEXT("Layer_Terrain"), g_strTransformTag.c_str()));
+			RedCircleDesc.pTerrainVIBufferCom = dynamic_cast<CVIBuffer_Terrain*>(m_pGameInstance->Get_Component(g_eLevel, TEXT("Layer_Terrain"), TEXT("Com_VIBuffer")));
+
+			_float4x4 WorldMatrix = *m_pTransform->Get_WorldMatrix();
+
+			RedCircleDesc.m_vPos = m_pTransform->Get_State(CTransform::STATE_POSITION);
+			RedCircleDesc.m_fLifeTime = 1.f;
+			RedCircleDesc.m_fScale = m_fScale.x;
+			
+			m_pGameInstance->Add_Clone(g_eLevel, TEXT("Layer_Red_Circle"), TEXT("Prototype_GameObject_Red_Circle"), &RedCircleDesc);
+			m_fGoBottomTime = 0.f;
+			m_fTexture = 0.f;
+			++m_iGoBottom;
+		}
+		break;
+	case 3:
+		if (m_fGoBottomTime <= 1.0f) // 나와야 하는 타이밍
+		{
+			
+			if (!m_bSoundUp)
+			{
+				m_pGameInstance->StopSound(CSound_Manager::MONSTER3);
+				m_pGameInstance->PlaySoundW(TEXT("Moo_Dive_End.wav"), CSound_Manager::MONSTER3, 0.7f);
+				m_bSoundUp = true;
+			}
+
+			CheckPlayer();
+			// 원 있으면 지우는 코드 만들기
+			
+			m_pTransform->Go_Up(m_fGoBottomSpeed * fTimeDelta*2);
+			m_fTimeBeforeTimeDelta = fTimeDelta;
+		}
+		else if (m_fGoBottomTime <= 1.5f)
+		{
+			CheckPlayer();
+			m_pTransform->Go_Down(m_fGoBottomSpeed* fTimeDelta * 2);
+		}
+		else if (m_fGoBottomTime <= 2.0f)
+		{
+			if(m_pTextureCom != m_pTextureUpBottom)
+			{
+				m_pGameInstance->StopSound(CSound_Manager::MONSTER5);
+				m_pGameInstance->PlaySoundW(TEXT("Moo_Smash_Start.wav"), CSound_Manager::MONSTER5, 0.7f);
+			}
+			m_pCamera->SetCameraShaking(true);
+			m_fTexture = 0.f;
+			m_pTextureCom = m_pTextureUpBottom;
+			__super::SetUp_OnTerrain((m_fScale.y * 0.5f));
+		}
+		else
+		{
+			m_bSoundUp = false;
+			m_pCamera->SetCameraShaking(false);
+			__super::SetUp_OnTerrain((m_fScale.y * 0.5f));
+			++m_iBottomNumPlus;
+			//m_pTextureCom = m_pTextureIdle; //기본 상태로 바꿔 줌
+			m_fGoBottomTime = 0.f;
+			m_fTexture = 0.f;
+			m_iGoBottom = 0;
+			CheckPlayer();
+		}
+		break;
+	default:
+		break;
+	}
+
+	m_fGoBottomTime += fTimeDelta; // 시간을 구함
+
+}
+
+void CBossYeti::Skill_UpIceSplinter(_float fTimeDelta)
+{
+	_uint iRand = rand() % 3;
+	CIceSplinter::ICE_SPLINTER_DESC IceSplinter_Desc = {};
+	IceSplinter_Desc.pTerrainTranformCom = dynamic_cast<CTransform*>(m_pGameInstance->Get_Component(g_eLevel, TEXT("Layer_Terrain"), g_strTransformTag.c_str()));
+	IceSplinter_Desc.pTerrainVIBufferCom = dynamic_cast<CVIBuffer_Terrain*>(m_pGameInstance->Get_Component(g_eLevel, TEXT("Layer_Terrain"), TEXT("Com_VIBuffer")));
+
+	_float4x4 WorldMatrix = *m_pTransform->Get_WorldMatrix();
+
+	IceSplinter_Desc.m_vPos = m_pTransform->Get_State(CTransform::STATE_POSITION);
+	
+	IceSplinter_Desc.m_iLifeTime = 10;
+	IceSplinter_Desc.m_fScale = 2.f;
+	IceSplinter_Desc.m_fDistance = 1.5f;
+
+	IceSplinter_Desc.m_fSpeed = 5.0f;
+	for (_int i = 0; i < 20; ++i) // 가시 16개 생성
+	{
+		m_pGameInstance->PlaySoundW(TEXT("Moo_Smash_Start.wav"), CSound_Manager::MONSTER3, 0.15f);
+
+		D3DXMatrixRotationAxis(&WorldMatrix, &_float3(0.f, 1.f, 0.f), D3DXToRadian(18.f * i)); // 16 방향
+		IceSplinter_Desc.m_vLook = *(_float3*)&WorldMatrix.m[2][0];
+		m_pGameInstance->Add_Clone(g_eLevel, TEXT("Layer_Bullet"), TEXT("Prototype_GameObject_IceSplinter"), &IceSplinter_Desc);
+
+	}
+
+	IceSplinter_Desc.m_fSpeed = 4.5f;
+	for (_int i = 0; i < 20; ++i) // 가시 16개 생성
+	{
+		TCHAR	szBuf[256] = L"";
+		swprintf_s(szBuf, L"Moo_Smash_Active_0%d.wav", iRand);
+		m_pGameInstance->PlaySoundW(szBuf, CSound_Manager::MONSTER2, 0.15f);
+		D3DXMatrixRotationAxis(&WorldMatrix, &_float3(0.f, 1.f, 0.f), D3DXToRadian((18.f) * i + 9.f));
+		IceSplinter_Desc.m_vLook = *(_float3*)&WorldMatrix.m[2][0];
+		m_pGameInstance->Add_Clone(g_eLevel, TEXT("Layer_Bullet"), TEXT("Prototype_GameObject_IceSplinter"), &IceSplinter_Desc);
+
+	}
+
+	IceSplinter_Desc.m_fSpeed = 4.0f;
+	for (_int i = 0; i < 20; ++i) // 가시 16개 생성
+	{
+		TCHAR	szBuf[256] = L"";
+		swprintf_s(szBuf, L"Moo_Smash_Active_0%d.wav", iRand);
+		m_pGameInstance->PlaySoundW(szBuf, CSound_Manager::MONSTER1, 0.15f);
+		D3DXMatrixRotationAxis(&WorldMatrix, &_float3(0.f, 1.f, 0.f), D3DXToRadian(18.f * i)); // 16 방향
+		IceSplinter_Desc.m_vLook = *(_float3*)&WorldMatrix.m[2][0];
+		m_pGameInstance->Add_Clone(g_eLevel, TEXT("Layer_Bullet"), TEXT("Prototype_GameObject_IceSplinter"), &IceSplinter_Desc);
+
+	}
+
+	IceSplinter_Desc.m_fSpeed = 4.0f;
+	for (_int i = 0; i < 20; ++i) // 가시 16개 생성
+	{
+		TCHAR	szBuf[256] = L"";
+		swprintf_s(szBuf, L"Moo_Smash_Active_0%d.wav", iRand);
+		m_pGameInstance->PlaySoundW(szBuf, CSound_Manager::MONSTER3, 0.15f);
+		D3DXMatrixRotationAxis(&WorldMatrix, &_float3(0.f, 1.f, 0.f), D3DXToRadian((18.f) * i + 9.f));
+		IceSplinter_Desc.m_vLook = *(_float3*)&WorldMatrix.m[2][0];
+		m_pGameInstance->Add_Clone(g_eLevel, TEXT("Layer_Bullet"), TEXT("Prototype_GameObject_IceSplinter"), &IceSplinter_Desc);
+
+	}
+
+}
+
+void CBossYeti::Set_Parabola()
+{
+	m_fEndHight = m_vEndPos.y - m_vBefore_Jump_Pos.y; // 도착지점의 높이와 시작지점 높이의 차를 구해줌
+	m_fHeight = m_fMaxHeight - m_vBefore_Jump_Pos.y; // 
+
+	m_fG = 2.f * m_fHeight / (m_fMaxTime * m_fMaxTime);
+
+	m_fV_Y = sqrtf(2.f * m_fG * m_fHeight);
+
+	_float b = -2.f * m_fV_Y;
+	_float c = 2.f * m_fEndHight;
+
+	m_fEndTime = (-b + sqrtf(b * b - 4.f * m_fG * c)) / (2.f * m_fG);
+
+	m_fV_X = -(m_vBefore_Jump_Pos.x - m_vEndPos.x) / m_fEndTime;
+	m_fV_Z = -(m_vBefore_Jump_Pos.z - m_vEndPos.z) / m_fEndTime;
+
+	//m_fEndHight = m_vEndPos.y - m_vBeforePos.y; // 도착지점의 높이와 시작지점 높이의 차를 구해줌
+	//m_fHeight = m_fMaxHeight - m_vBeforePos.y; // 
+
+	//m_fG = 2.f * m_fHeight / (m_fMaxTime * m_fMaxTime);
+
+	//m_fV_Y = sqrtf(2.f * m_fG * m_fHeight);
+
+	//_float b = -2.f * m_fV_Y;
+	//_float c = 2.f * m_fEndHight;
+
+	//m_fEndTime = (-b + sqrtf(b * b - 4.f * m_fG * c)) / (2.f * m_fG);
+
+	//m_fV_X = -(m_vBeforePos.x - m_vEndPos.x) / m_fEndTime;
+	//m_fV_Z = -(m_vBeforePos.z - m_vEndPos.z) / m_fEndTime;
+}
+
+void CBossYeti::Cut_Scene(_float fTimeDelta)
+{
+	if (m_fTime == 0)
+	{
+		CCamera_Player_DW* pCameraDw = dynamic_cast<CCamera_Player_DW*>(m_pGameInstance->Get_Object(LEVEL_STATIC, TEXT("Layer_Camera")));
+		Set_Parabola();
+	}
+	
+	if(m_fTime < m_fMaxTime * 2.f)
+	{
+		Move_Scene();
+		m_fTime += fTimeDelta;
+	}
+	else
+	{
+		m_fTime = 0.f;
+		m_eNowState = STATE_IDLE;
+	}
+}
+
+void CBossYeti::Move_Scene()
+{
+	m_vGoPos.x = m_vBeforePos.x + m_fV_X * m_fTime;
+	m_vGoPos.y = m_vBeforePos.y + (m_fV_Y * m_fTime) - (0.5f * m_fG * m_fTime * m_fTime);
+	m_vGoPos.z = m_vBeforePos.z + m_fV_Z * m_fTime;
+
+	m_pTransform->Set_State(CTransform::STATE_POSITION, m_vGoPos);
+}
+
+_bool CBossYeti::MousePicking()
+{
+	if ((GetAsyncKeyState('F') & 0x8000))
+	{
+		return true;
+	}
+	return false;
+}
+
+void CBossYeti::Collision_Bullet(_float fTimeDelta)
+{
+	CPlayer* pPlayer = dynamic_cast<CPlayer*>(m_pGameInstance->Get_Object(LEVEL_STATIC, TEXT("Layer_Player")));
+	CWeapon* pWeapons[3] = { pPlayer->Get_Weapon(0),pPlayer->Get_Weapon(1) ,pPlayer->Get_Weapon(2) };
+
+	for (size_t i = 0; i < 3; i++)
+	{
+		_uint iRand = rand() % 3;
+		if (nullptr == pWeapons[i])
+			continue;
+		_float fTotalDamage = pWeapons[i]->Collision_Bullet_Rect(dynamic_cast<CCollider_Rect*>(m_pCollider_Com[COLLIDER_RECT]), fTimeDelta);
+		if (0.f < fTotalDamage)
+			m_pUI_Damage->Hit_Damage(fTotalDamage);
+		pWeapons[i]->Plus_GunGauge(fTotalDamage);
+		if (OBJECT_DEAD == m_pState_Com->Set_Hp(-fTotalDamage))
+		{
+			
+
+			TCHAR	szBuf[256] = L"";
+			swprintf_s(szBuf, L"Moo_Hit_0%d.wav", iRand);
+			m_pGameInstance->PlaySoundW(szBuf, CSound_Manager::MONSTER5, 0.4f);
+			
+			m_fTexture = 0.f;
+			m_fTime = 0.f;
+			m_eNowState = STATE_DEATH;
+			Set_Dead();
+			break;
+		}
+	}
+}
+
+void CBossYeti::Collision_Wall()
+{
+	_float3 vRayPos = m_pTransform->Get_State(CTransform::STATE_POSITION);
+	_float3 vRayDir[4] = {
+		 m_pTransform->Get_State(CTransform::STATE_LOOK),
+		 m_pTransform->Get_State(CTransform::STATE_RIGHT),
+		 -m_pTransform->Get_State(CTransform::STATE_LOOK),
+		 -m_pTransform->Get_State(CTransform::STATE_RIGHT)
+	};
+	_float fLength[4] = {
+		1.f,
+		1.f,
+		1.f,
+		1.f
+		/*D3DXVec3Length(&vRayDir[0]),
+		D3DXVec3Length(&vRayDir[1]),
+		D3DXVec3Length(&vRayDir[2]),
+		D3DXVec3Length(&vRayDir[3])*/
+	};
+	for (size_t i = 0; i < 4; i++)
+	{
+		D3DXVec3Normalize(&vRayDir[i], &vRayDir[i]);
+	}
+
+	list<CGameObject*>* pWallList = m_pGameInstance->Get_List(g_eLevel, TEXT("Layer_Wall"));
+	if (nullptr == pWallList)
+		return;
+
+	_float fMinDist(1000.f); //큰 값으로 초기화
+	for (auto& iter : *pWallList)//Wall List 전부를 순회하면서 충돌을 판단한다.
+	{
+		CCollider_Rect* pCollider_Rect = dynamic_cast<CCollider_Rect*>(iter->Get_Component(TEXT("Com_Collider_Rect")));
+		if (nullptr == pCollider_Rect)
+			continue;
+		_float fDist(1000.f);
+		for (size_t i = 0; 4 > i; ++i)
+		{
+			if (m_pGameInstance->Collision_Rect_Ray_Same_Space(pCollider_Rect, vRayDir[i], vRayPos, fLength[i], &fDist)) //충돌이 일어났을 때
+			{
+				if (fMinDist > fDist) //
+				{
+					fMinDist = fDist;
+					_float3 vPos = vRayPos + vRayDir[i] * (fMinDist - 1.f);
+					m_pTransform->Set_State(CTransform::STATE_POSITION, vPos);
+				}
+			}
+		}
+	}
+}
+
+CBossYeti* CBossYeti::Create(LPDIRECT3DDEVICE9 pGraphic_Device)
+{
+	CBossYeti* pInstance = new CBossYeti(pGraphic_Device);
+	if (FAILED(pInstance->Initialize_Prototype()))
+	{
+		MSG_BOX(TEXT("Faild to Created : CBossYeti"));
+
+		Safe_Release(pInstance);
+	}
+
+	return pInstance;
+}
+
+CGameObject* CBossYeti::Clone(void* pArg)
+{
+	CBossYeti* pInstance = new CBossYeti(*this);
+	if (FAILED(pInstance->Initialize(pArg)))
+	{
+		MSG_BOX(TEXT("Faild to Cloned : CBossYeti"));
+
+		Safe_Release(pInstance);
+	}
+
+	return pInstance;
+}
+
+void CBossYeti::Free()
+{
+	Safe_Release(m_pVIBuffer_Com);
+	Safe_Release(m_pTextureIdle);
+	Safe_Release(m_pTextureSkillReady);
+	Safe_Release(m_pTextureRoll);
+	Safe_Release(m_pTextureJumpAttak);
+	Safe_Release(m_pTextureJumpAttakEnd);
+	Safe_Release(m_pTextureDeath);
+	Safe_Release(m_pTextureCollider);
+	Safe_Release(m_pCollider_Com[COLLIDER_RECT]);
+	Safe_Release(m_pState_Com);
+	Safe_Release(m_pTextureGoBottom);
+	Safe_Release(m_pTextureUpBottom);
+	Safe_Release(m_pCamera);
+	Safe_Release(m_pDWCameraTransform);
+	__super::Free();
+}

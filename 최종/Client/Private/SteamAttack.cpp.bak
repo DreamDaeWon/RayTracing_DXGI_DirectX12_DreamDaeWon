@@ -1,0 +1,297 @@
+#include "pch.h"
+#include "GameInstance.h"
+#include "SteamAttack.h"
+#include "Player.h"
+#include "State.h"
+
+CSteamAttack::CSteamAttack(LPDIRECT3DDEVICE9 pGraphic_Device)
+	: CLandObject(pGraphic_Device)
+{
+}
+
+CSteamAttack::CSteamAttack(const CSteamAttack& rhs)
+	: CLandObject(rhs)
+{
+}
+
+HRESULT CSteamAttack::Initialize_Prototype()
+{
+	if (FAILED(__super::Initialize_Prototype()))
+	{
+		MSG_BOX(TEXT("Failed to Initialize_Prototype : __super,CSteamAttack"));
+		return E_FAIL;
+	}
+
+	return S_OK;
+}
+
+HRESULT CSteamAttack::Initialize(void* pArg)
+{
+	if (pArg != nullptr)
+	{
+		STEAMATTACK_DESC* pSteamAttackDesc = (STEAMATTACK_DESC*)pArg;
+		m_vPos = pSteamAttackDesc->vPosition;
+		m_fLifeTime = pSteamAttackDesc->fLifeTime;
+
+		// 랜드 오브젝트 정보 받아오기
+		LANDOBJECT_DESC* pLandObjectDesc = (LANDOBJECT_DESC*)pArg;
+		pLandObjectDesc->fSpeedPerSec = 1.f;
+		pLandObjectDesc->fRotationPerSec = D3DXToRadian(90.f);
+
+	}
+
+	if (FAILED(__super::Initialize(pArg)))
+	{
+
+		MSG_BOX(TEXT("Failed to Initialize : __super,CSteamAttack"));
+		return E_FAIL;
+	}
+
+	if (FAILED(Add_Components()))
+	{
+		MSG_BOX(TEXT("Failed to Add_Components : __super,CSteamAttack"));
+		return E_FAIL;
+	}
+
+	m_fUp = -0.1f;
+
+	m_pTransform->Set_State(CTransform::STATE_POSITION, m_vPos);
+	//m_pTransform->Turn(_float3(1.f, 0.f, 0.f), D3DXToRadian(90.f));
+	m_pCollider_Com->Set_Range(0.7f);
+	return S_OK;
+}
+
+_uint CSteamAttack::Tick(_float fTimeDelta)
+{
+	if (m_bDead)
+		return OBJECT_NOTHING;
+
+	if (m_fUp < 0.1f)
+	{
+		__super::SetUp_OnTerrain(m_fUp);
+		m_fUp += 0.03f;
+	}
+	else
+	{
+		if (0.f <= m_fLifeTime)
+			m_fLifeTime -= fTimeDelta;
+	}
+	
+	m_pCollider_Com->Update_Collider_Info(*m_pTransform->Get_WorldMatrix());
+
+	__super::Tick(fTimeDelta);
+	return OBJECT_NOTHING;
+}
+
+void CSteamAttack::Late_Tick(_float fTimeDelta)
+{
+	if (0.f > m_fLifeTime)
+	{
+		m_bDead = true;
+	}
+
+	if (m_bDead)
+		return;
+
+	__super::Late_Tick(fTimeDelta);
+
+	SetUp_BillBoard();
+
+	Collision_Player();
+
+	m_pGameInstance->Add_RenderObject(CRenderer::RENDER_NONBLEND, this);
+}
+
+HRESULT CSteamAttack::Render()
+{
+	if (m_bDead)
+		return S_OK;
+
+	if (FAILED(m_pTransform->Bind_WorldMatrix()))
+	{
+		MSG_BOX(TEXT("Failed to Bind_WorldMatrix : Render"));
+		return E_FAIL;
+	}
+	if (FAILED(m_pTextureCom->Bind_Texture(0, 0)))
+	{
+		MSG_BOX(TEXT("Failed to Bind_Texture : Render"));
+		return E_FAIL;
+	}
+	//m_pGraphic_Device->SetRenderState(D3DRS_FILLMODE, D3DFILL_WIREFRAME);
+	if (FAILED(Set_RenderState()))
+	{
+		MSG_BOX(TEXT("Failed to Set_RenderState : Render"));
+		return E_FAIL;
+	}
+	if (FAILED(m_pVIBuffer_Com->Render()))
+	{
+		MSG_BOX(TEXT("Failed to Render : Render"));
+		return E_FAIL;
+	}
+	if (FAILED(Reset_RenderState()))
+	{
+		MSG_BOX(TEXT("Failed to Reset_RenderState : Render"));
+		return E_FAIL;
+	}
+
+
+	return S_OK;
+}
+
+HRESULT CSteamAttack::Add_Components()
+{
+	/* For.Com_VIBuffer */
+	if (FAILED(__super::Add_Component(LEVEL_STATIC, TEXT("Prototype_Component_VIBuffer_Rect"), TEXT("Com_VIBuffer"), reinterpret_cast<CComponent**>(&m_pVIBuffer_Com))))
+	{
+		MSG_BOX(TEXT("Failed to Prototype_Component_VIBuffer_Rect : Add_Components"));
+		return E_FAIL;
+	}
+
+	/* For.Com_Texture */
+	if (FAILED(__super::Add_Component(LEVEL_NORMAL2, TEXT("Prototype_Component_Texture_SteamAttack"), TEXT("Com_Texture"), reinterpret_cast<CComponent**>(&m_pTextureCom))))
+	{
+		MSG_BOX(TEXT("Failed to Prototype_Component_Texture_SteamAttack : Add_Components"));
+		return E_FAIL;
+	}
+	/* For.Com_Collider */
+	if (FAILED(__super::Add_Component(LEVEL_STATIC, TEXT("Prototype_Component_Collider_Sphere"), TEXT("Com_Collider_Sphere"), reinterpret_cast<CComponent**>(&m_pCollider_Com))))
+	{
+		MSG_BOX(TEXT("Failed to Prototype_Component_Collider_Sphere : Add_Components"));
+		return E_FAIL;
+	}
+
+	return S_OK;
+}
+
+HRESULT CSteamAttack::Set_RenderState()
+{
+	if (FAILED(m_pGraphic_Device->SetRenderState(D3DRS_ALPHATESTENABLE, TRUE)))
+	{
+		MSG_BOX(TEXT("Failed to SetRenderState : D3DRS_ALPHATESTENABLE"));
+		return E_FAIL;
+	}
+	if (FAILED(m_pGraphic_Device->SetRenderState(D3DRS_ALPHAREF, 200)))
+	{
+		MSG_BOX(TEXT("Failed to SetRenderState : D3DRS_ALPHAREF"));
+		return E_FAIL;
+	}
+	if (FAILED(m_pGraphic_Device->SetRenderState(D3DRS_ALPHAFUNC, D3DCMP_GREATER)))
+	{
+		MSG_BOX(TEXT("Failed to SetRenderState : D3DRS_ALPHAFUNC"));
+		return E_FAIL;
+	}
+
+	//m_pGraphic_Device->SetRenderState(D3DRS_CULLMODE, D3DCULL_NONE);
+
+	return S_OK;
+}
+
+HRESULT CSteamAttack::Reset_RenderState()
+{
+	if (FAILED(m_pGraphic_Device->SetRenderState(D3DRS_ALPHATESTENABLE, FALSE)))
+	{
+		MSG_BOX(TEXT("Failed to SetRenderState : D3DRS_ALPHATESTENABLE"));
+		return E_FAIL;
+	}
+
+	if (FAILED(m_pGraphic_Device->SetSamplerState(0, D3DSAMP_MINFILTER, D3DTEXF_LINEAR)))
+	{
+		MSG_BOX(TEXT("Failed to SetSamplerState : D3DSAMP_MINFILTER"));
+		return E_FAIL;
+	}
+	if (FAILED(m_pGraphic_Device->SetSamplerState(0, D3DSAMP_MAGFILTER, D3DTEXF_LINEAR)))
+	{
+		MSG_BOX(TEXT("Failed to SetSamplerState : D3DSAMP_MAGFILTER"));
+		return E_FAIL;
+	}
+	if (FAILED(m_pGraphic_Device->SetSamplerState(0, D3DSAMP_MIPFILTER, D3DTEXF_LINEAR)))
+	{
+		MSG_BOX(TEXT("Failed to SetSamplerState : D3DSAMP_MIPFILTER"));
+		return E_FAIL;
+	}
+
+	return S_OK;
+}
+
+void CSteamAttack::SetUp_BillBoard()
+{
+	//CTransform* pCameraTransformCom = dynamic_cast<CTransform*>(m_pGameInstance->Get_Component(g_eLevel, TEXT("Layer_Camera_Player"), g_strTransformTag));
+	if (nullptr == m_pCameraTransform)
+	{
+		m_pCameraTransform = dynamic_cast<CTransform*>(m_pGameInstance->Get_Component(LEVEL_STATIC, TEXT("Layer_Camera_Player"), g_strTransformTag));
+		if (nullptr != m_pCameraTransform)
+			Safe_AddRef(m_pCameraTransform);
+	}
+
+	if (nullptr == m_pCameraTransform)
+	{
+		MSG_BOX(TEXT("nullptr == m_pCameraTransformCom : CPlayer::SetUp_BillBoard()"));
+		return;
+	}
+
+	_float4x4 pCameraWorldMatrix = *m_pCameraTransform->Get_WorldMatrix();
+
+
+	_float3 vScale = m_pTransform->Get_Scale();
+
+	m_pTransform->Set_State(CTransform::STATE_RIGHT, *D3DXVec3Normalize((_float3*)&pCameraWorldMatrix.m[CTransform::STATE_RIGHT][0], (_float3*)&pCameraWorldMatrix.m[CTransform::STATE_RIGHT][0]) * vScale.x);
+	m_pTransform->Set_State(CTransform::STATE_LOOK, *D3DXVec3Normalize((_float3*)&pCameraWorldMatrix.m[CTransform::STATE_LOOK][0], (_float3*)&pCameraWorldMatrix.m[CTransform::STATE_LOOK][0]) * vScale.z);
+}
+
+void CSteamAttack::Collision_Player()
+{
+	if (m_bDead)
+		return;
+
+	CPlayer* pPlayer = dynamic_cast<CPlayer*>(m_pGameInstance->Get_Object(LEVEL_STATIC, TEXT("Layer_Player")));
+	if (nullptr == pPlayer)
+		return;
+
+	CCollider_Sphere* pPlayerColliderSphere = dynamic_cast<CCollider_Sphere*>(pPlayer->Get_Component(TEXT("Com_Collider_Sphere")));
+	if (nullptr == pPlayerColliderSphere)
+		return;
+
+	if (m_pGameInstance->Collision_Sphere(m_pCollider_Com, pPlayerColliderSphere))
+	{
+		CState* pPlayerStateCom = dynamic_cast<CState*>(pPlayer->Get_Component(TEXT("Com_State")));
+		if (nullptr == pPlayerStateCom)
+			return;
+		pPlayerStateCom->Set_Hp(-3.f);
+	}
+}
+
+CSteamAttack* CSteamAttack::Create(LPDIRECT3DDEVICE9 pGraphic_Device)
+{
+	CSteamAttack* pInstance = new CSteamAttack(pGraphic_Device);
+	if (FAILED(pInstance->Initialize_Prototype()))
+	{
+		MSG_BOX(TEXT("Faild to Created : CSteamAttack"));
+
+		Safe_Release(pInstance);
+	}
+
+	return pInstance;
+}
+
+CGameObject* CSteamAttack::Clone(void* pArg)
+{
+	CSteamAttack* pInstance = new CSteamAttack(*this);
+	if (FAILED(pInstance->Initialize(pArg)))
+	{
+		MSG_BOX(TEXT("Faild to Cloned : CSteamAttack"));
+
+		Safe_Release(pInstance);
+	}
+
+	return pInstance;
+}
+
+void CSteamAttack::Free()
+{
+	Safe_Release(m_pVIBuffer_Com);
+	Safe_Release(m_pTextureCom);
+	Safe_Release(m_pCameraTransform);
+	Safe_Release(m_pCollider_Com);
+
+	__super::Free();
+}

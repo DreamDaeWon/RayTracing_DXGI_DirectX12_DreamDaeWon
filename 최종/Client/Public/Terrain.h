@@ -1,0 +1,57 @@
+#pragma once
+#include "GameObject.h"
+#include "Client_Defines.h"
+
+
+BEGIN(Engine)
+class CVIBuffer_Terrain;
+class CTexture;
+END
+
+BEGIN(Client)
+
+class CTerrain final: public CGameObject
+{
+public:
+	typedef struct tagTerrainDesc : public CGameObject::GAMEOBJECT_DESC
+	{
+		wstring strVIBufferTag = {};
+		_uint iFrame = { 0 };
+		_float fFrame = { 0.f };
+		_uint iLevel = {0};
+	}TERRAIN_DESC;
+private:
+	CTerrain(LPDIRECT3DDEVICE9 pGraphic_Device);
+	CTerrain(const CTerrain& rhs);
+	virtual ~CTerrain() = default;
+
+public:
+	virtual HRESULT Initialize_Prototype() override;
+	virtual HRESULT Initialize(void* pArg) override;
+	virtual _uint Tick(_float fTimeDelta) override;
+	virtual void Late_Tick(_float fTimeDelta) override;
+	virtual HRESULT Render() override;
+
+
+private:
+	HRESULT Add_Components();
+	HRESULT Add_Components(const wstring& strObjectLayerTag);
+	HRESULT Add_Components(const wstring& strObjectLayerTag,_uint iLevel);
+	void Landing_Object(const wstring& strObjectLayerTag);
+
+private:
+	CTexture*		m_pTextureCom = { nullptr };
+	CVIBuffer_Terrain* m_pVIBuffer_Com = { nullptr };
+
+	_int m_iFrame = { 0 };
+	_float m_fFrame = { 0.f };
+	//CVIBuffer_Rect* m_pVIBuffer_Com = { nullptr };
+
+
+public:
+	static CTerrain* Create(LPDIRECT3DDEVICE9 pGraphic_Device);
+	virtual CGameObject* Clone(void* pArg) override;
+	virtual void Free() override;
+};
+
+END

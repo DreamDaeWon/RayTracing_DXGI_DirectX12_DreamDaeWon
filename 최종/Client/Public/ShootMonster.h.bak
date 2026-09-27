@@ -1,0 +1,135 @@
+#pragma once
+#include "LandObject.h"
+#include "Client_Defines.h"
+#include "random"
+
+#define SHOOT_MONSTER_LIFE_TIME 40.f
+
+BEGIN(Engine)
+class CCollider_Cube_AABB;
+class CCollider_Rect;
+class CCollider;
+class CVIBuffer_AirPlane;
+class CTexture;
+END
+
+BEGIN(Client)
+
+class CShootMonster final : public CLandObject
+{
+public:
+
+	enum STATE_MOVE_DIR { DIR_DOWN, DIR_RIGHT, DIR_LEFT, DIR_RIGHT_DOWN, DIR_LEFT_DOWN, DIR_END };
+
+	typedef struct tagMonster_Shoot_Monster_Desc : public CLandObject::LANDOBJECT_DESC {
+
+		STATE_MOVE_DIR eMoveDir;
+		_float fScale;
+
+	}MONSTER_SHOOT_MONSTER_DESC;
+
+	// 몬스터의 상태 값
+	enum STATE_SHOOT_MONSTER { STATE_IDLE, STATE_MOVE, STATE_ATTAK, STATE_DEATH, STATE_END };
+	
+
+private:
+	CShootMonster(LPDIRECT3DDEVICE9 pGraphic_Device);
+	CShootMonster(const CShootMonster& rhs);
+	virtual ~CShootMonster() = default;
+
+public:
+	virtual HRESULT Initialize_Prototype() override;
+	virtual HRESULT Initialize(void* pArg) override;
+	virtual _uint Tick(_float fTimeDelta) override;
+	virtual void Late_Tick(_float fTimeDelta) override;
+	virtual HRESULT Render() override;
+
+public:
+	void Return_Look_Position(_float3* pvLook, _float3* pvPosition);
+
+private:
+	void Do_State(_float fTimeDelta); // 상태값을 정해 줌
+	void CheckPlayer(); // 플레이어가 인식범위에 들어왔는지?
+	HRESULT Add_Components();
+	HRESULT Set_RenderState();
+	HRESULT Reset_RenderState();
+	void Chase_Player(_float fTimeDelta, _float Min_Distance);
+	_bool MousePicking(); // 마우스가 이 몬스터를 지정하면
+	//TODO:용수 총알 발사함수
+	void Shot_Bullet();
+	//TODO:용수 총알충돌처리 테스트
+	void Collision_Bullet(_float fTimeDelta);
+	void Collision_Wall();
+	void Collider_Billboarding();
+
+
+private:
+
+	_bool m_bShootBullet = { false }; // 총을 쐈는지 안쐈는지?
+	_float m_fSootBulletTime = { 10.f + (_float)(rand() % 5) }; // 얼마의 시간이 지나고 총을 발사할건지?
+
+
+	STATE_MOVE_DIR m_eDirState = { DIR_END };
+
+	_float m_fScale = { 1.f };
+
+	_float3 m_vStartPos = {0.f,0.f,0.f}; // 시작 지점 X,Y,Z
+
+
+	_bool m_bCheckPlayer = { false }; // 몬스터가 플레이어를 인식했는지에 대한 bool값
+
+	_float m_fCheckDestence = { 10.f }; // 몬스터가 플레이어를 인식하는 범위
+	_float3 m_vMonsterLook = { 0.f, 0.f, 1.f }; // 몬스터가 게임 상에서 바라보는 룩벡터
+
+	CTexture* m_pTextureCom = { nullptr };
+
+	CVIBuffer_AirPlane* m_pVIBuffer_Com = { nullptr };
+	//TODO:용수 총알충돌처리 테스트
+	CCollider* m_pCollider_Com[COLLIDER_END] = { nullptr };
+	
+	CTransform* m_pCameraTransform = { nullptr };
+
+	STATE_SHOOT_MONSTER m_eNowState = { STATE_IDLE }; // 현재 상태
+
+	// 죽음 관련 변수
+	_bool m_bDeadShow = { false }; // 죽는 모션을 모두 보여줬는지?
+
+	// Idle 상태 관련 변수
+
+	_float m_fIdleDynamic = { 0.2f };
+	_float m_fIdleTime = { 2.f };
+	_float m_fIdleAngle = { 0.f };
+
+	// Move 관련 함수
+	_float m_fMoveDistance = { 5.f };
+
+	// 구르기 관련 변수
+	_float m_fRollTime = { 0.f }; // 구르기 시간에 사용할 값
+	_float m_fRollingTime = { 0.5f }; // 몇초동안 구를건지?
+	_float m_fRollCoolTime = { 3.f }; // 구르기 쿨타임 값
+	_float m_fRollGo = { 4.f }; // 구르는 거리
+	_bool m_bTurnRight = { true };
+
+	// 총쏘기 관련 변수
+	_float m_fAttakTime = { 1.0f }; // 총쏘는 모션에서의 발사 쿨타임
+	_uint m_iAttakNum = { 0 }; // 현재 총을 얼마나 발사했는지?
+
+
+	//몬스터 설정값
+	class CState* m_pState_Com = { nullptr };
+
+
+	_float m_fMoveSpeed = { 1.f }; // 이동속도
+	_float m_fRollSpeed = { 3.f }; // 구르기 속도
+
+	_float m_fTime = { 0.f }; // 시간제어
+	_float m_fLifeTime = { SHOOT_MONSTER_LIFE_TIME }; // 얼마나 뒤에 죽는지?
+
+
+public:
+	static CShootMonster* Create(LPDIRECT3DDEVICE9 pGraphic_Device);
+	virtual CGameObject* Clone(void* pArg) override;
+	virtual void Free() override;
+};
+
+END

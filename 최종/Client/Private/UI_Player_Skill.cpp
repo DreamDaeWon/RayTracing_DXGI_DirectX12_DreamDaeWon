@@ -1,0 +1,399 @@
+#include "pch.h"
+#include "UI_Player_Skill.h"
+#include "GameInstance.h"
+#include"Player.h"
+
+#include"Player_Skill.h"
+
+
+CUI_Player_Skill::CUI_Player_Skill(LPDIRECT3DDEVICE9 pGraphic_Device)
+	:CUI_Base(pGraphic_Device)
+{
+}
+
+CUI_Player_Skill::CUI_Player_Skill(const CUI_Base& rhs)
+	:CUI_Base(rhs)
+{
+}
+
+HRESULT CUI_Player_Skill::Initialize_Prototype()
+{
+	return S_OK;
+}
+
+HRESULT CUI_Player_Skill::Initialize(void* pArg)
+{
+
+
+ 	if (FAILED(__super::Initialize(pArg)))
+		return E_FAIL;
+	if (nullptr != pArg)
+	{
+		UI_PLAYER_SKILL_DESC* SkillDesc = (UI_PLAYER_SKILL_DESC*)pArg;
+		m_pPlayerSp = SkillDesc->pPlayerSp;
+		m_pPlayerMaxSp = SkillDesc->pPlayerMaxSp;
+		m_fPreSP = *m_pPlayerSp;
+	}
+
+	if (FAILED(Add_Components()))
+		return E_FAIL;
+
+	D3DXMatrixIdentity(&m_ViewMatrix);
+
+	D3DXMatrixOrthoLH(&m_ProjMatrix, g_iWinSizeX, g_iWinSizeY, 0.0f, 1.f);
+
+	m_fSizeX = 512.f;
+	m_fSizeY = 256.f;
+	m_fX = 300.f;
+	m_fY = 610.f;
+
+	m_pTransform->Set_Scale(_float3(m_fSizeX*0.8f, m_fSizeY*0.8f, 1.f));
+	m_pTransform->Set_State(CTransform::STATE_POSITION, _float3(
+		m_fX - g_iWinSizeX * 0.5f,
+		-m_fY + g_iWinSizeY * 0.5f,
+		0.f
+	));
+	m_FirstWorld = *m_pTransform->Get_WorldMatrix();
+	return S_OK; 
+}
+
+_uint CUI_Player_Skill::Tick(_float fTimeDelta)
+{
+	m_fFrame += 2.f * fTimeDelta * 2.f;
+	if (m_fFrame > 3.f)
+		m_fFrame = 0.f;
+	Get_State();
+	if (m_bMove)
+		m_fTime += fTimeDelta;
+	m_fCurSP = *m_pPlayerSp;
+	m_fGap = m_fPreSP - m_fCurSP;
+	if (m_fGap >= 0.f)
+		m_bMove = true;
+	else
+		m_fPreSP = m_fCurSP;
+	if (m_fPreSP - m_fGap * m_fTime < m_fCurSP)
+	{
+		m_fPreSP = m_fCurSP;
+		m_fTime = 0.f;
+	}
+	return OBJECT_NOTHING;
+}
+
+void CUI_Player_Skill::Late_Tick(_float fTimeDelta)
+{
+
+	m_pGameInstance->Add_RenderObject(CRenderer::RENDER_UI, this);
+
+}
+
+HRESULT CUI_Player_Skill::Render()
+{
+
+	if (!g_UI)
+		return S_OK;
+
+	m_pGraphic_Device->SetTransform(D3DTS_VIEW, &m_ViewMatrix);
+	m_pGraphic_Device->SetTransform(D3DTS_PROJECTION, &m_ProjMatrix);
+
+	//background 먼저
+	m_pTextureCom = m_pTextureBackCom;
+	if (FAILED(Render_Again(m_fSizeX * 0.95f,m_fSizeY * 0.85f,m_fX+25.f,m_fY+10.f,0,0)))
+		return E_FAIL;
+	Reset_First_State();
+
+
+
+	//스킬 프레임 뒷배경
+	m_pTextureCom = m_pTextureSkillGaugeCom;
+	if (FAILED(Render_Again(279.f, 16.f * 1.2f, m_fX + 30.f, m_fY + 50.f, 0, 20)))
+		return E_FAIL;
+	Reset_First_State();
+	// 스킬 게이지m_fSizeY * 0.16f,
+	/*if (FAILED(Render_Again(*m_pPlayerSp * (279.f / *m_pPlayerMaxSp), 16.f*1.2f, m_fX + 30.f - ((*m_pPlayerMaxSp - *m_pPlayerSp) * (279.f / *m_pPlayerMaxSp) * 0.49f), m_fY + 50.f, 1, 0)))
+		return E_FAIL;
+	Reset_First_State();*/
+	if (FAILED(Render_Again((m_fPreSP - m_fGap * m_fTime) * (279.f / *m_pPlayerMaxSp), 16.f * 1.2f, m_fX + 30.f - ((*m_pPlayerMaxSp - (m_fPreSP - m_fGap * m_fTime)) * (279.f / *m_pPlayerMaxSp) * 0.49f), m_fY + 50.f, 1, 0)))
+		return E_FAIL;
+	Reset_First_State();
+	//스킬 프레임
+	if (FAILED(Render_Again(279.f, 16.f * 1.2f, m_fX + 30.f, m_fY + 50.f, 2, 20)))
+		return E_FAIL;
+	Reset_First_State();
+
+
+	//스킬 위 점박이
+	m_pTextureCom = m_pTextureBackDotCom;
+	if (FAILED(Render_Again(m_fSizeX * 0.52f, m_fSizeY * 0.5f, m_fX+26.f, m_fY-25.f, (_uint)m_fFrame, 0)))
+		return E_FAIL;
+	Reset_First_State();
+
+
+
+	//스킬 이미지(spacebar)
+	if (m_pSkillSlot[SPACE_SKILL] != nullptr)
+	{
+
+		m_pTextureCom = m_pTextureSkillCom;
+		if (FAILED(Render_Again(m_fSizeX * 0.225f, m_fSizeY * 0.45f, m_fX - 160.f, m_fY + 30.f, (m_pSkillSlot)[SPACE_SKILL]->Get_ID(), 20)))
+			return E_FAIL;
+		Reset_First_State();
+
+		if (m_pSkillSlot[SPACE_SKILL]->Get_CoolTime() -(m_pCoolTime)[SPACE_SKILL]>=0.f|| !(m_pSkillSlot[SPACE_SKILL]->Get_No()))
+		{
+ 			m_pTextureCom = m_pTextureSkillCoolCom;
+			if (FAILED(Render_Again(m_fSizeX * 0.225f, m_fSizeY * 0.45f, m_fX - 160.f, m_fY + 30.f, 0, 20)))
+				return E_FAIL;
+			Reset_First_State();
+			TCHAR	szBuf[256] = L"";
+			swprintf_s(szBuf, L"%d", (_uint)(m_pSkillSlot[SPACE_SKILL]->Get_CoolTime() - (m_pCoolTime)[SPACE_SKILL]));
+			m_pGameInstance->Render_Font(TEXT("Font_BB1"), szBuf, &_float2(m_fX - 173.f, m_fY + 23.f), D3DXCOLOR(0.f, 0.f, 0.f, 1.f));
+			m_pGameInstance->Render_Font(TEXT("Font_BB"), szBuf, &_float2(m_fX - 170.f, m_fY + 20.f), D3DXCOLOR(1.f, 1.f, 1.f, 1.f));
+
+		}
+
+		TCHAR	szBuf[256] = L"";
+		swprintf_s(szBuf, L"%s", L"SPACE");
+		m_pGameInstance->Render_Font(TEXT("Font_gool1"), szBuf, &_float2(m_fX - 193.f, m_fY + 82.f), D3DXCOLOR(0.f, 0.f, 0.f, 0.5f));
+		m_pGameInstance->Render_Font(TEXT("Font_gool"), szBuf, &_float2(m_fX - 190.f, m_fY + 80.f), D3DXCOLOR(1.f, 1.f, 1.f, 1.f));
+	}
+
+	 
+	//스킬 이미지(shift)
+	if (m_pSkillSlot[SHIFT_SKILL] != nullptr)
+	{
+
+		m_pTextureCom = m_pTextureSkillCom;
+		if (FAILED(Render_Again(m_fSizeX * 0.225f, m_fSizeY * 0.45f, m_fX - 235.f, m_fY - 15.f, (m_pSkillSlot)[SHIFT_SKILL]->Get_ID(), 20)))
+			return E_FAIL;
+		Reset_First_State();
+
+		if (m_pSkillSlot[SHIFT_SKILL]->Get_CoolTime() - (m_pCoolTime)[SHIFT_SKILL] >= 0.f)
+		{
+			m_pTextureCom = m_pTextureSkillCoolCom;
+			if (FAILED(Render_Again(m_fSizeX * 0.225f, m_fSizeY * 0.45f, m_fX - 235.f, m_fY - 15.f, 0, 20)))
+				return E_FAIL;
+			Reset_First_State();
+			TCHAR	szBuf[256] = L"";
+			swprintf_s(szBuf, L"%d", (_uint)(m_pSkillSlot[SHIFT_SKILL]->Get_CoolTime() - (m_pCoolTime)[SHIFT_SKILL]));
+			m_pGameInstance->Render_Font(TEXT("Font_BB1"), szBuf, &_float2(m_fX - 248.f, m_fY - 22.f), D3DXCOLOR(0.f, 0.f, 0.f, 1.f));
+			m_pGameInstance->Render_Font(TEXT("Font_BB"), szBuf, &_float2(m_fX - 245.f, m_fY - 25.f), D3DXCOLOR(1.f, 1.f, 1.f, 1.f));
+		}
+
+		TCHAR	szBuf[256] = L"";
+		swprintf_s(szBuf, L"%s", L"SHIFT");
+		m_pGameInstance->Render_Font(TEXT("Font_gool1"), szBuf, &_float2(m_fX - 268.f, m_fY + 37.f), D3DXCOLOR(0.f, 0.f, 0.f, 0.5f));
+		m_pGameInstance->Render_Font(TEXT("Font_gool"), szBuf, &_float2(m_fX - 265.f, m_fY + 35.f), D3DXCOLOR(1.f, 1.f, 1.f, 1.f));
+
+	}
+	
+
+	//스킬 이미지(Q)
+	if (m_pSkillSlot[Q_SKILL] != nullptr)
+	{
+
+		m_pTextureCom = m_pTextureSkillCom;
+		if (FAILED(Render_Again(m_fSizeX * 0.225f, m_fSizeY * 0.45f, m_fX - 160.f, m_fY - 61.f, (m_pSkillSlot)[Q_SKILL]->Get_ID(), 20)))
+			return E_FAIL;
+		Reset_First_State();
+
+		if ( m_pSkillSlot[Q_SKILL]->Get_Activate())
+		{
+			m_pTextureCom = m_pTextureSkillCoolCom;
+			if (FAILED(Render_Again(m_fSizeX * 0.225f, m_fSizeY * 0.45f, m_fX - 160.f, m_fY - 61.f, 0, 20)))
+				return E_FAIL;
+			Reset_First_State();
+			TCHAR	szBuf[256] = L"";
+			swprintf_s(szBuf, L"%d", (_uint)(m_pSkillSlot[Q_SKILL]->Get_CoolTime() - (m_pCoolTime)[Q_SKILL]));
+			m_pGameInstance->Render_Font(TEXT("Font_BB1"), szBuf, &_float2(m_fX - 173.f, m_fY + 68.f), D3DXCOLOR(0.f, 0.f, 0.f, 1.f));
+			m_pGameInstance->Render_Font(TEXT("Font_BB"), szBuf, &_float2(m_fX - 170.f, m_fY - 71.f), D3DXCOLOR(1.f, 1.f, 1.f, 1.f));
+		}
+		TCHAR	szBuf[256] = L"";
+		swprintf_s(szBuf, L"%s", L"Q");
+		m_pGameInstance->Render_Font(TEXT("Font_gool1"), szBuf, &_float2(m_fX - 193.f, m_fY - 129.f), D3DXCOLOR(0.f, 0.f, 0.f, 0.5f));
+		m_pGameInstance->Render_Font(TEXT("Font_gool"), szBuf, &_float2(m_fX - 190.f, m_fY - 131.f), D3DXCOLOR(1.f, 1.f, 1.f, 1.f));
+	}
+
+
+	//스킬 이미지(F)
+	if (m_pSkillSlot[F_SKILL] != nullptr)
+	{
+
+		m_pTextureCom = m_pTextureSkillCom;
+		if (FAILED(Render_Again(m_fSizeX * 0.225f, m_fSizeY * 0.45f, m_fX - 85.f, m_fY - 15.f, (m_pSkillSlot)[F_SKILL]->Get_ID(), 20)))
+			return E_FAIL;
+		Reset_First_State();
+
+		if (m_pSkillSlot[F_SKILL]->Get_Activate())
+		{
+			m_pTextureCom = m_pTextureSkillCoolCom;
+			if (FAILED(Render_Again(m_fSizeX * 0.225f, m_fSizeY * 0.45f, m_fX - 85.f, m_fY - 15.f, 0, 20)))
+				return E_FAIL;
+			Reset_First_State();
+			TCHAR	szBuf[256] = L"";
+			swprintf_s(szBuf, L"%d", (_uint)(m_pSkillSlot[F_SKILL]->Get_CoolTime() - (m_pCoolTime)[F_SKILL]));
+			m_pGameInstance->Render_Font(TEXT("Font_BB1"), szBuf, &_float2(m_fX - 98.f, m_fY - 23.f), D3DXCOLOR(0.f, 0.f, 0.f, 0.5f));
+			m_pGameInstance->Render_Font(TEXT("Font_BB"), szBuf, &_float2(m_fX - 95.f, m_fY - 25.f), D3DXCOLOR(1.f, 1.f, 1.f, 1.f));
+		}
+
+		TCHAR	szBuf[256] = L"";
+		swprintf_s(szBuf, L"%s", L"F");
+		m_pGameInstance->Render_Font(TEXT("Font_gool1"), szBuf, &_float2(m_fX - 193.f, m_fY - 83.f), D3DXCOLOR(0.f, 0.f, 0.f, 0.5f));
+		m_pGameInstance->Render_Font(TEXT("Font_gool"), szBuf, &_float2(m_fX - 190.f, m_fY - 85.f), D3DXCOLOR(1.f, 1.f, 1.f, 1.f));
+	}
+
+
+
+	if (FAILED(Reset_RenderState()))
+		return E_FAIL;
+
+
+	return S_OK;
+}
+
+void CUI_Player_Skill::Get_State()
+{
+	for (size_t i = 0; i < SKILL_SLOT_END; i++)
+	{
+		CPlayer* pPlayer = dynamic_cast<CPlayer*>(m_pGameInstance->Get_Object(LEVEL_STATIC, TEXT("Layer_Player")));
+		m_pSkillSlot[i] = pPlayer->Get_Skill(i);
+		m_pCoolTime[i] = pPlayer->Get_Cool_Time(i);
+	}
+
+
+
+}
+
+
+HRESULT CUI_Player_Skill::Render_Again(_float fSizeX, _float fSizeY, _float fX, _float fY, _uint iFrame, _uint iRenderState)
+{
+	//m_pTransform->Turn(_float3(1.f, 1.f, 0.f), 0.001f);
+	m_pTransform->Set_Scale(_float3(fSizeX, fSizeY, 1.f));
+
+	m_pTransform->Set_State(CTransform::STATE_POSITION, _float3(
+		fX - g_iWinSizeX * 0.5f,
+		-fY + g_iWinSizeY * 0.5f,
+		0.f
+	));
+
+	if (FAILED(m_pTransform->Bind_WorldMatrix()))
+		return E_FAIL;
+
+	if (FAILED(m_pTextureCom->Bind_Texture(0, (_uint)iFrame)))
+		return E_FAIL;
+
+
+	if (FAILED(Set_RenderState(iRenderState)))
+		return E_FAIL;
+	if (FAILED(m_pVIBufferCom->Render()))
+		return E_FAIL;
+
+
+	return S_OK;
+}
+
+void CUI_Player_Skill::Reset_First_State()
+{
+	m_pTransform->Set_WorldMatrix(m_FirstWorld);
+}
+
+HRESULT CUI_Player_Skill::Add_Components()
+{
+	/* For.Com_VIBuffer */
+	if (FAILED(__super::Add_Component(LEVEL_STATIC, TEXT("Prototype_Component_VIBuffer_Rect"),
+		TEXT("Com_VIBuffer"), (CComponent**)&m_pVIBufferCom)))
+		return E_FAIL;
+
+	/* For.Com_Texture */
+	if (FAILED(__super::Add_Component(g_eLevel, TEXT("Prototype_Component_Texture_UI_Skill_Icon"),
+		TEXT("Com_Texture"), (CComponent**)&m_pTextureSkillCom)))
+		return E_FAIL;
+	if (FAILED(__super::Add_Component(g_eLevel, TEXT("Prototype_Component_Texture_UI_Skill_Back"),
+		TEXT("Com_Texture1"), (CComponent**)&m_pTextureBackCom)))
+		return E_FAIL;
+
+	if (FAILED(__super::Add_Component(g_eLevel, TEXT("Prototype_Component_Texture_UI_Skill_Gauge"),
+		TEXT("Com_Texture2"), (CComponent**)&m_pTextureSkillGaugeCom)))
+		return E_FAIL;
+
+	if (FAILED(__super::Add_Component(g_eLevel, TEXT("Prototype_Component_Texture_UI_Skill_Gauge_Sq"),
+		TEXT("Com_Texture3"), (CComponent**)&m_pTextureBackDotCom)))
+		return E_FAIL;
+
+	if (FAILED(__super::Add_Component(g_eLevel, TEXT("Prototype_Component_Texture_UI_Skill_CoolTime"),
+		TEXT("Com_Texture6"), (CComponent**)&m_pTextureSkillCoolCom)))
+		return E_FAIL;
+
+	return S_OK;
+}
+
+HRESULT CUI_Player_Skill::Set_RenderState(_ulong lAphaRef)
+{
+	m_pGraphic_Device->SetSamplerState(0, D3DSAMP_MINFILTER, D3DTEXF_POINT);
+	m_pGraphic_Device->SetSamplerState(0, D3DSAMP_MAGFILTER, D3DTEXF_POINT);
+	m_pGraphic_Device->SetSamplerState(0, D3DSAMP_MIPFILTER, D3DTEXF_POINT);
+	m_pGraphic_Device->SetRenderState(D3DRS_ALPHATESTENABLE, TRUE);
+	m_pGraphic_Device->SetRenderState(D3DRS_ALPHAREF, lAphaRef);
+	m_pGraphic_Device->SetRenderState(D3DRS_ALPHAFUNC, D3DCMP_GREATER);
+	m_pGraphic_Device->SetRenderState(D3DRS_ALPHABLENDENABLE, TRUE);
+	m_pGraphic_Device->SetRenderState(D3DRS_SRCBLEND, D3DBLEND_SRCALPHA);
+	m_pGraphic_Device->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA);
+	m_pGraphic_Device->SetRenderState(D3DRS_BLENDOP, D3DBLENDOP_ADD);
+
+	m_pGraphic_Device->SetRenderState(D3DRS_ZENABLE, FALSE);
+	m_pGraphic_Device->SetRenderState(D3DRS_ZWRITEENABLE, TRUE);
+	return S_OK;
+}
+
+HRESULT CUI_Player_Skill::Reset_RenderState()
+{
+	m_pGraphic_Device->SetRenderState(D3DRS_ALPHABLENDENABLE, FALSE);
+
+	m_pGraphic_Device->SetSamplerState(0, D3DSAMP_MINFILTER, D3DTEXF_LINEAR);
+	m_pGraphic_Device->SetSamplerState(0, D3DSAMP_MAGFILTER, D3DTEXF_LINEAR);
+	m_pGraphic_Device->SetSamplerState(0, D3DSAMP_MIPFILTER, D3DTEXF_LINEAR);
+	m_pGraphic_Device->SetRenderState(D3DRS_ALPHATESTENABLE, FALSE);
+
+	m_pGraphic_Device->SetRenderState(D3DRS_ZENABLE, TRUE);
+	m_pGraphic_Device->SetRenderState(D3DRS_ZWRITEENABLE, TRUE);
+
+	return S_OK;
+}
+
+CUI_Player_Skill* CUI_Player_Skill::Create(LPDIRECT3DDEVICE9 pGraphic_Device)
+{
+	CUI_Player_Skill* pInstance = new CUI_Player_Skill(pGraphic_Device);
+
+	if (FAILED(pInstance->Initialize_Prototype()))
+	{
+		MSG_BOX(TEXT("Failed To Created : CUI_Player_Skill"));
+
+		Safe_Release(pInstance);
+	}
+
+	return pInstance;
+}
+
+CGameObject* CUI_Player_Skill::Clone(void* pArg)
+{
+	CUI_Player_Skill* pInstance = new CUI_Player_Skill(*this);
+
+	if (FAILED(pInstance->Initialize(pArg)))
+	{
+		MSG_BOX(TEXT("Failed To Cloned : CUI_Player_Skill"));
+
+		Safe_Release(pInstance);
+	}
+
+	return pInstance;
+}
+
+void CUI_Player_Skill::Free()
+{
+	m_pTextureCom = nullptr;
+	Safe_Release(m_pTextureSkillCom);
+	Safe_Release(m_pTextureSkillCoolCom);
+	Safe_Release(m_pTextureBackCom);
+	Safe_Release(m_pTextureBackDotCom);
+	Safe_Release(m_pTextureSkillGaugeCom);
+	__super::Free();
+}

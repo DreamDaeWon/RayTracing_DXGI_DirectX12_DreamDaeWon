@@ -1,0 +1,559 @@
+#include "../Public/VIBuffer_Terrain.h"
+#include "GameInstance.h"
+
+CVIBuffer_Terrain::CVIBuffer_Terrain(LPDIRECT3DDEVICE9 pGraphic_Device) :
+    CVIBuffer(pGraphic_Device)
+{
+}
+
+CVIBuffer_Terrain::CVIBuffer_Terrain(const CVIBuffer_Terrain& rhs) :
+    CVIBuffer(rhs),
+    m_iVertexNumX(rhs.m_iVertexNumX),
+    m_iVertexNumZ(rhs.m_iVertexNumZ)
+    //,m_pVerticesPos(rhs.m_pVerticesPos)
+{
+}
+
+HRESULT CVIBuffer_Terrain::Initialize_Prototype(_uint iVertexNumX, _uint iVertexNumZ)
+{
+    m_iVertexNumX = iVertexNumX;
+    m_iVertexNumZ = iVertexNumZ;
+
+    m_pVerticesPos = new _float3[iVertexNumX * iVertexNumZ];
+
+    _uint iMaxTileNum = (iVertexNumX - 1) * (iVertexNumZ - 1);
+    m_iNumVertices = iVertexNumX * iVertexNumZ;
+    m_iVertexStride = sizeof(VTXPOSTEX);
+    m_dwFVF = D3DFVF_XYZ | D3DFVF_TEX1 | D3DFVF_TEXCOORDSIZE2(0);
+    m_dwPrimitive = 2 * iMaxTileNum;
+
+
+    m_iIndexStride = m_iNumVertices >= 65535 ? 4 : 2;
+    m_iNumIndices = 6 * iMaxTileNum;
+    m_eIndexFormat = m_iIndexStride == 2 ? D3DFMT_INDEX16 : D3DFMT_INDEX32;
+   
+    //For. VertexBuffer
+
+    /* 정점 여섯개의 배열 공간을 할당한다. */
+    if (FAILED(__super::Create_VertexBuffer()))
+    {
+        MSG_BOX(TEXT("Failed to Create_VertexBuffer : __super,CVIBuffer_Terrain"));
+        return E_FAIL;
+    }
+
+    VTXPOSTEX* pVertex = { nullptr };
+
+    /* 할당된 정점 배열공간의 가장 앞 주소를 얻어올 수 있다. */
+    /* 이 공간을 걸어 잠근다. */
+    m_pVB->Lock(0, 0, (void**)&pVertex, 0);
+
+    for (size_t j = 0; j < iVertexNumZ; j++)
+    {
+        for (size_t i = 0; i < iVertexNumX; i++)
+        {
+            pVertex[i + j * iVertexNumX].vPosition = m_pVerticesPos[i + j * iVertexNumX] = _float3{ (_float)i, 0.f, (_float)j };
+            pVertex[i + j * iVertexNumX].vTexcoord = _float2{ (_float)i, (_float)j};
+        }
+    }
+
+    m_pVB->Unlock();
+
+    //For. IndexBuffer
+    if (FAILED(__super::Create_IndexBuffer()))
+    {
+        MSG_BOX(TEXT("Failed to Create_IndexBuffer : __super,CVIBuffer_Terrain"));
+        return E_FAIL;
+    }
+
+    if (m_iIndexStride == 2)
+    {
+        _ushort* pIndices = { nullptr };
+        m_pIB->Lock(0, 0, (void**)&pIndices, 0);
+        // 3 3 사각형 몇개? 4개 그러면 몇번? 4번 돌아야함.
+        for (_ushort j = 0; j < iVertexNumZ - 1; j++)
+        {
+            for (_ushort i = 0; i < iVertexNumX - 1; i++)                                        //j = 0     j = 0   j = 1
+            {                                                                                   //i = 0     i = 1   i = 0
+                pIndices[i * 6 + j * 6 * (iVertexNumX - 1)] = i + j * iVertexNumX + iVertexNumX;      //0 3       6  4    12
+                pIndices[i * 6 + j * 6 * (iVertexNumX - 1) + 1] = i + j * iVertexNumX + iVertexNumX + 1;  //1 4       7  5    13
+                pIndices[i * 6 + j * 6 * (iVertexNumX - 1) + 2] = i + j * iVertexNumX + 1;                //2 1       8  2    14
+
+                pIndices[i * 6 + j * 6 * (iVertexNumX - 1) + 3] = i + j * iVertexNumX + iVertexNumX;       //3 3      9  4    15  
+                pIndices[i * 6 + j * 6 * (iVertexNumX - 1) + 4] = i + j * iVertexNumX + 1;                 //4 1      10 2    16
+                pIndices[i * 6 + j * 6 * (iVertexNumX - 1) + 5] = i + j * iVertexNumX;                     //5 0      11 1    17
+            }
+        }
+        m_pIB->Unlock();
+    }
+    else if (m_iIndexStride == 4)
+    {
+        _uint* pIndices = { nullptr };
+        m_pIB->Lock(0, 0, (void**)&pIndices, 0);
+
+        for (_uint j = 0; j < iVertexNumZ; j++)
+        {
+            for (_uint i = 0; i < iVertexNumX; i++)
+            {                                                                       //i = 0  i = 1
+                pIndices[i * 6 + j * 6 * (iVertexNumX - 1)] = i + j * iVertexNumX + iVertexNumX;      //0 3       6  4    12
+                pIndices[i * 6 + j * 6 * (iVertexNumX - 1) + 1] = i + j * iVertexNumX + iVertexNumX + 1;  //1 4       7  5    13
+                pIndices[i * 6 + j * 6 * (iVertexNumX - 1) + 2] = i + j * iVertexNumX + 1;                //2 1       8  2    14
+
+                pIndices[i * 6 + j * 6 * (iVertexNumX - 1) + 3] = i + j * iVertexNumX + iVertexNumX;       //3 3      9  4    15  
+                pIndices[i * 6 + j * 6 * (iVertexNumX - 1) + 4] = i + j * iVertexNumX + 1;                 //4 1      10 2    16
+                pIndices[i * 6 + j * 6 * (iVertexNumX - 1) + 5] = i + j * iVertexNumX;
+            }
+        }
+        m_pIB->Unlock();
+    }
+
+    
+
+    return S_OK;
+}
+
+HRESULT CVIBuffer_Terrain::Initialize_Prototype(const wstring& strHeightMapFilePath)
+{
+    BITMAPFILEHEADER tagFileHeader = {};
+    BITMAPINFOHEADER tagInfoHeader = {};
+    _ulong* pPixels = { nullptr };
+
+    _ulong dwByte = { 0 };
+
+    HANDLE pFile = CreateFile(strHeightMapFilePath.c_str(), GENERIC_READ, 0, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
+
+    if (INVALID_HANDLE_VALUE == pFile)
+    {
+        MSG_BOX(TEXT("Failed to OpenFile : CVIBuffer_Terrain::Initialize_Prototype"));
+        return E_FAIL;
+    }
+    
+    ReadFile(pFile, &tagFileHeader, sizeof tagFileHeader, &dwByte, nullptr);
+    ReadFile(pFile, &tagInfoHeader, sizeof tagInfoHeader, &dwByte, nullptr);
+
+    m_iVertexNumX = tagInfoHeader.biWidth;
+    m_iVertexNumZ = tagInfoHeader.biHeight;
+
+    pPixels = new _ulong[m_iVertexNumX * m_iVertexNumZ];
+
+    ReadFile(pFile, pPixels, sizeof(_ulong) * m_iVertexNumX * m_iVertexNumZ, &dwByte, nullptr);
+
+    CloseHandle(pFile);
+
+    m_pVerticesPos = new _float3[m_iVertexNumX * m_iVertexNumZ];
+
+
+    _uint iMaxTileNum = (m_iVertexNumX - 1) * (m_iVertexNumZ - 1);
+    m_iNumVertices = m_iVertexNumX * m_iVertexNumZ;
+    m_iVertexStride = sizeof(VTXPOSTEX);
+    m_dwFVF = D3DFVF_XYZ | D3DFVF_TEX1 | D3DFVF_TEXCOORDSIZE2(0);
+    m_dwPrimitive = 2 * iMaxTileNum;
+
+
+    m_iIndexStride = m_iNumVertices >= 65535 ? 4 : 2;
+    m_iNumIndices = 6 * iMaxTileNum;
+    m_eIndexFormat = m_iIndexStride == 2 ? D3DFMT_INDEX16 : D3DFMT_INDEX32;
+
+
+    //For. VertexBuffer
+
+    /* 정점 여섯개의 배열 공간을 할당한다. */
+    if (FAILED(__super::Create_VertexBuffer()))
+    {
+        MSG_BOX(TEXT("Failed to Create_VertexBuffer : __super,CVIBuffer_Terrain"));
+        return E_FAIL;
+    }
+
+    VTXPOSTEX* pVertex = { nullptr };
+
+    /* 할당된 정점 배열공간의 가장 앞 주소를 얻어올 수 있다. */
+    /* 이 공간을 걸어 잠근다. */
+    m_pVB->Lock(0, 0, (void**)&pVertex, 0);
+
+    for (size_t j = 0; j < m_iVertexNumZ; j++)
+    {
+        for (size_t i = 0; i < m_iVertexNumX; i++)
+        {
+            pVertex[i + j * m_iVertexNumX].vPosition = m_pVerticesPos[i + j * m_iVertexNumX] = _float3{ (_float)i, (pPixels[i + j * m_iVertexNumX] & 0x000000ff) / 255.f * 30.f, (_float)j };
+            pVertex[i + j * m_iVertexNumX].vTexcoord = _float2{ (_float)i / (_float)(m_iVertexNumX - 1) * 50.f  , (_float)j / (_float)(m_iVertexNumZ - 1) * 50.f };
+        }
+    }
+
+    m_pVB->Unlock();
+
+    //For. IndexBuffer
+    if (FAILED(__super::Create_IndexBuffer()))
+    {
+        MSG_BOX(TEXT("Failed to Create_IndexBuffer : __super,CVIBuffer_Terrain"));
+        return E_FAIL;
+    }
+
+    if (m_iIndexStride == 2)
+    {
+        _ushort* pIndices = { nullptr };
+        _ushort* pIndicesInfo = new _ushort[m_iNumIndices];
+        //_ushort* pIndicesInfo = (_ushort*)m_pIndicesInfo;
+        m_pIB->Lock(0, 0, (void**)&pIndices, 0);
+
+        _uint iIndex = 0;
+        // 3 3 사각형 몇개? 4개 그러면 몇번? 4번 돌아야함.
+        for (_ushort j = 0; j < m_iVertexNumZ - 1; j++)
+        {
+            for (_ushort i = 0; i < m_iVertexNumX - 1; i++)                                     
+            {                                                                                
+                pIndices[iIndex] = pIndicesInfo[iIndex] = i + j * m_iVertexNumX + m_iVertexNumX;      // 인덱스 예전 i * 6 + j * 6 * (m_iVertexNumX - 1)
+                pIndices[iIndex + 1] = pIndicesInfo[iIndex + 1 ] = i + j * m_iVertexNumX + m_iVertexNumX + 1;
+                pIndices[iIndex + 2] = pIndicesInfo[iIndex + 2 ] = i + j * m_iVertexNumX + 1;
+                                      
+                pIndices[iIndex + 3] = pIndicesInfo[iIndex + 3 ] = i + j * m_iVertexNumX + m_iVertexNumX;
+                pIndices[iIndex + 4] = pIndicesInfo[iIndex + 4 ] = i + j * m_iVertexNumX + 1;
+                pIndices[iIndex + 5] = pIndicesInfo[iIndex + 5 ] = i + j * m_iVertexNumX;
+
+                iIndex += 6;
+            }
+        }
+        m_pIndicesInfo = pIndicesInfo;
+        m_pIB->Unlock();
+    }
+    else if (m_iIndexStride == 4)
+    {
+        //_uint* pIndices = { nullptr };
+        //m_pIB->Lock(0, 0, (void**)&pIndices, 0);
+
+        //for (_uint j = 0; j < m_iVertexNumZ; j++)
+        //{
+        //    for (_uint i = 0; i < m_iVertexNumX; i++)
+        //    {                                                                       //i = 0  i = 1
+        //        pIndices[i * 6 + j * 6 * (m_iVertexNumX - 1)] = i + j * m_iVertexNumX + m_iVertexNumX;      //0 3       6  4    12
+        //        pIndices[i * 6 + j * 6 * (m_iVertexNumX - 1) + 1] = i + j * m_iVertexNumX + m_iVertexNumX + 1;  //1 4       7  5    13
+        //        pIndices[i * 6 + j * 6 * (m_iVertexNumX - 1) + 2] = i + j * m_iVertexNumX + 1;                //2 1       8  2    14
+
+        //        pIndices[i * 6 + j * 6 * (m_iVertexNumX - 1) + 3] = i + j * m_iVertexNumX + m_iVertexNumX;       //3 3      9  4    15  
+        //        pIndices[i * 6 + j * 6 * (m_iVertexNumX - 1) + 4] = i + j * m_iVertexNumX + 1;                 //4 1      10 2    16
+        //        pIndices[i * 6 + j * 6 * (m_iVertexNumX - 1) + 5] = i + j * m_iVertexNumX;
+        //    }
+        //}
+        //m_pIB->Unlock();
+
+        _uint* pIndices = { nullptr };
+        _uint* pIndicesInfo = new _uint[m_iNumIndices];
+        //_ushort* pIndicesInfo = (_ushort*)m_pIndicesInfo;
+        m_pIB->Lock(0, 0, (void**)&pIndices, 0);
+
+        _uint iIndex = 0;
+        // 3 3 사각형 몇개? 4개 그러면 몇번? 4번 돌아야함.
+        for (_ushort j = 0; j < m_iVertexNumZ - 1; j++)
+        {
+            for (_ushort i = 0; i < m_iVertexNumX - 1; i++)
+            {
+                pIndices[iIndex] = pIndicesInfo[iIndex] = i + j * m_iVertexNumX + m_iVertexNumX;      // 인덱스 예전 i * 6 + j * 6 * (m_iVertexNumX - 1)
+                pIndices[iIndex + 1] = pIndicesInfo[iIndex + 1] = i + j * m_iVertexNumX + m_iVertexNumX + 1;
+                pIndices[iIndex + 2] = pIndicesInfo[iIndex + 2] = i + j * m_iVertexNumX + 1;
+
+                pIndices[iIndex + 3] = pIndicesInfo[iIndex + 3] = i + j * m_iVertexNumX + m_iVertexNumX;
+                pIndices[iIndex + 4] = pIndicesInfo[iIndex + 4] = i + j * m_iVertexNumX + 1;
+                pIndices[iIndex + 5] = pIndicesInfo[iIndex + 5] = i + j * m_iVertexNumX;
+
+                iIndex += 6;
+            }
+        }
+        m_pIndicesInfo = pIndicesInfo;
+        m_pIB->Unlock();
+    }
+
+    Safe_Delete_Array(pPixels);
+
+    return S_OK;
+}
+
+HRESULT CVIBuffer_Terrain::Initialize(void* pArg)
+{
+    return S_OK;
+}
+
+D3DXPLANE CVIBuffer_Terrain::Find_Poligon_XZ_Plane(_float3 vPosition)
+{
+    _uint iIndex = { 0 };
+    D3DXPLANE ResultPlane = {};
+
+    if (m_iIndexStride == 2)
+    {
+        VTXPOSTEX* pVertex = { nullptr };
+        _ushort* pIndex = { nullptr };
+        m_pVB->Lock(0, 0, (void**)&pVertex, 0);
+        m_pIB->Lock(0, 0, (void**)&pIndex, 0);
+
+        for (size_t i = 0; i < (m_iVertexNumX - 1) * (m_iVertexNumZ - 1) * 2; i++) //삼각형의 개수
+        {
+            _float3 vPoints[3] = {};
+            vPoints[0] = pVertex[pIndex[iIndex*3]].vPosition;
+            vPoints[1] = pVertex[pIndex[iIndex*3 + 1]].vPosition;
+            vPoints[2] = pVertex[pIndex[iIndex*3 + 2]].vPosition;
+
+            _float3 vDir[3] = {};
+            vDir[0] = vPoints[1] - vPoints[0];
+            vDir[1] = vPoints[2] - vPoints[1];
+            vDir[2] = vPoints[0] - vPoints[2];
+
+            _float3 vNormal[3] = {};
+            vNormal[0] = { -vDir[0].z, 0.f, vDir[0].x };
+            vNormal[1] = { -vDir[1].z, 0.f, vDir[1].x };
+            vNormal[2] = { -vDir[2].z, 0.f, vDir[2].x };
+
+            _float3 vTargetDir[3] = {};
+            vTargetDir[0] = vPosition - vPoints[0];
+            vTargetDir[1] = vPosition - vPoints[1];
+            vTargetDir[2] = vPosition - vPoints[2];
+
+            _bool bIsPicking = { false };
+            for (int j = 0; j < 3; ++j)
+            {
+                if (0.f < D3DXVec3Dot(&vNormal[j], &vTargetDir[j]))
+                {
+                    bIsPicking = false;
+                    break; //실패 없다. 이번 인덱스가 아니다 그러면 다음 인덱스를 찾는다.
+                } 
+                if (2 == j)
+                    bIsPicking = true;
+            }
+            if (bIsPicking == true)
+            {
+                m_pVB->Unlock();
+                m_pIB->Unlock();
+                return *D3DXPlaneFromPoints( &ResultPlane, &vPoints[0], &vPoints[1], &vPoints[2]);
+            }
+            ++iIndex;
+        }
+        m_pVB->Unlock();
+        m_pIB->Unlock();
+    }
+    else if (m_iIndexStride == 4)
+    {
+        VTXPOSTEX* pVertex = { nullptr };
+        _uint* pIndex = { nullptr };
+        m_pVB->Lock(0, 0, (void**)&pVertex, 0);
+        m_pIB->Lock(0, 0, (void**)&pIndex, 0);
+
+        for (size_t i = 0; i < (m_iVertexNumX - 1) * (m_iVertexNumZ - 1) * 2; i++) //삼각형의 개수
+        {
+            _float3 vPoints[3] = {};
+            vPoints[0] = pVertex[pIndex[iIndex * 3]].vPosition;
+            vPoints[1] = pVertex[pIndex[iIndex * 3 + 1]].vPosition;
+            vPoints[2] = pVertex[pIndex[iIndex * 3 + 2]].vPosition;
+
+            _float3 vDir[3] = {};
+            vDir[0] = vPoints[1] - vPoints[0];
+            vDir[1] = vPoints[2] - vPoints[1];
+            vDir[2] = vPoints[0] - vPoints[2];
+
+            _float3 vNormal[3] = {};
+            vNormal[0] = { -vDir[0].z, 0.f, vDir[0].x };
+            vNormal[1] = { -vDir[1].z, 0.f, vDir[1].x };
+            vNormal[2] = { -vDir[2].z, 0.f, vDir[2].x };
+
+            _float3 vTargetDir[3] = {};
+            vTargetDir[0] = vPosition - vPoints[0];
+            vTargetDir[1] = vPosition - vPoints[1];
+            vTargetDir[2] = vPosition - vPoints[2];
+
+            _bool bIsPicking = { false };
+            for (int j = 0; j < 3; ++j)
+            {
+                if (0.f < D3DXVec3Dot(&vNormal[j], &vTargetDir[j]))
+                {
+                    bIsPicking = false;
+                    break; //실패 없다. 이번 인덱스가 아니다 그러면 다음 인덱스를 찾는다.
+                }
+                if (2 == j)
+                    bIsPicking = true;
+            }
+            if (bIsPicking == true)
+            {
+                m_pVB->Unlock();
+                m_pIB->Unlock();
+                return *D3DXPlaneFromPoints(&ResultPlane, &vPoints[0], &vPoints[1], &vPoints[2]);
+            }
+            ++iIndex;
+        }
+        m_pVB->Unlock();
+        m_pIB->Unlock();
+    }
+
+    MSG_BOX(TEXT("Failed to Find Plane"));
+    return ResultPlane;
+}
+
+_float CVIBuffer_Terrain::Landing_Object(_float3 vPosition)
+{
+    _uint iIndex = { 0 };
+
+    if (m_iIndexStride == 2)
+    {
+        _ushort* pIndex = (_ushort*)m_pIndicesInfo;
+
+
+        for (size_t i = 0; i < (m_iVertexNumX - 1) * (m_iVertexNumZ - 1) * 2; i++) //삼각형의 개수
+        {
+            _float3 vPoints[3] = {};
+            vPoints[0] = m_pVerticesPos[pIndex[iIndex * 3]];
+            vPoints[1] = m_pVerticesPos[pIndex[iIndex * 3 + 1]];
+            vPoints[2] = m_pVerticesPos[pIndex[iIndex * 3 + 2]];
+
+            _float3 vDir[3] = {};
+            vDir[0] = vPoints[1] - vPoints[0];
+            vDir[1] = vPoints[2] - vPoints[1];
+            vDir[2] = vPoints[0] - vPoints[2];
+
+            _float3 vNormal[3] = {};
+            vNormal[0] = { -vDir[0].z, 0.f, vDir[0].x };
+            vNormal[1] = { -vDir[1].z, 0.f, vDir[1].x };
+            vNormal[2] = { -vDir[2].z, 0.f, vDir[2].x };
+
+            _float3 vTargetDir[3] = {};
+            vTargetDir[0] = vPosition - vPoints[0];
+            vTargetDir[1] = vPosition - vPoints[1];
+            vTargetDir[2] = vPosition - vPoints[2];
+
+            _bool bIsPicking = { false };
+            for (int j = 0; j < 3; ++j)
+            {
+                if (0.f < D3DXVec3Dot(&vNormal[j], &vTargetDir[j]))
+                {
+                    bIsPicking = false;
+                    break; //실패 없다. 이번 인덱스가 아니다 그러면 다음 인덱스를 찾는다.
+                }
+                if (2 == j)
+                    bIsPicking = true;
+            }
+            if (bIsPicking == true)
+            {
+                D3DXPLANE ResultPlane = *D3DXPlaneFromPoints(&ResultPlane, &vPoints[0], &vPoints[1], &vPoints[2]);
+                return ((-ResultPlane.a * vPosition.x - ResultPlane.c * vPosition.z - ResultPlane.d) / ResultPlane.b);
+            }
+            ++iIndex;
+        }
+
+    }
+    else if (m_iIndexStride == 4)
+    {
+        _uint* pIndex = (_uint*)m_pIndicesInfo;
+
+        for (size_t i = 0; i < (m_iVertexNumX - 1) * (m_iVertexNumZ - 1) * 2; i++) //삼각형의 개수
+        {
+            _float3 vPoints[3] = {};
+            vPoints[0] = m_pVerticesPos[pIndex[iIndex * 3]];
+            vPoints[1] = m_pVerticesPos[pIndex[iIndex * 3 + 1]];
+            vPoints[2] = m_pVerticesPos[pIndex[iIndex * 3 + 2]];
+
+            _float3 vDir[3] = {};
+            vDir[0] = vPoints[1] - vPoints[0];
+            vDir[1] = vPoints[2] - vPoints[1];
+            vDir[2] = vPoints[0] - vPoints[2];
+
+            _float3 vNormal[3] = {};
+            vNormal[0] = { -vDir[0].z, 0.f, vDir[0].x };
+            vNormal[1] = { -vDir[1].z, 0.f, vDir[1].x };
+            vNormal[2] = { -vDir[2].z, 0.f, vDir[2].x };
+
+            _float3 vTargetDir[3] = {};
+            vTargetDir[0] = vPosition - vPoints[0];
+            vTargetDir[1] = vPosition - vPoints[1];
+            vTargetDir[2] = vPosition - vPoints[2];
+
+            _bool bIsPicking = { false };
+            for (int j = 0; j < 3; ++j)
+            {
+                if (0.f < D3DXVec3Dot(&vNormal[j], &vTargetDir[j]))
+                {
+                    bIsPicking = false;
+                    break; //실패 없다. 이번 인덱스가 아니다 그러면 다음 인덱스를 찾는다.
+                }
+                if (2 == j)
+                    bIsPicking = true;
+            }
+            if (bIsPicking == true)
+            {
+                D3DXPLANE ResultPlane = *D3DXPlaneFromPoints(&ResultPlane, &vPoints[0], &vPoints[1], &vPoints[2]);
+                return ((-ResultPlane.a * vPosition.x - ResultPlane.c * vPosition.z - ResultPlane.d) / ResultPlane.b);
+            }
+            ++iIndex;
+        }
+    }
+    return 0.f;
+}
+
+_float CVIBuffer_Terrain::Compute_Height(const _float3& vTargetPosition)
+{
+    //vTargetPosition은 터레인의 로컬스페이스로 전환된 객체의 위치 값. 바로 인덱스 구해서 높이를 구해준다.
+    
+    _uint iIndex = (_uint)vTargetPosition.x + (_uint)vTargetPosition.z * m_iVertexNumX;
+
+    if (iIndex > m_iVertexNumX * m_iVertexNumZ)//터레인을 벗어남.
+        return 0.f;
+
+    _uint iIndices[4] = {
+        iIndex + m_iVertexNumX,
+        iIndex + m_iVertexNumX + 1,
+        iIndex + 1,
+        iIndex
+    };
+
+    _float fDeltaX = vTargetPosition.x - m_pVerticesPos[iIndices[0]].x;
+    _float fDeltaZ = m_pVerticesPos[iIndices[0]].z - vTargetPosition.z;
+
+    D3DXPLANE Plane = {};
+    if (fDeltaX > fDeltaZ)//위삼각형
+        D3DXPlaneFromPoints(&Plane, &m_pVerticesPos[iIndices[0]], &m_pVerticesPos[iIndices[1]], & m_pVerticesPos[iIndices[2]]);
+    else//아래삼각형
+        D3DXPlaneFromPoints(&Plane, &m_pVerticesPos[iIndices[0]], &m_pVerticesPos[iIndices[2]], &m_pVerticesPos[iIndices[3]]);
+   
+    return (-Plane.a * vTargetPosition.x - Plane.c * vTargetPosition.z - Plane.d)/ Plane.b;
+}
+
+
+CVIBuffer_Terrain* CVIBuffer_Terrain::Create(LPDIRECT3DDEVICE9 pGraphic_Device, _uint iVertexNumX, _uint iVertexNumY)
+{
+    CVIBuffer_Terrain* pInstance = new CVIBuffer_Terrain(pGraphic_Device);
+    if (FAILED(pInstance->Initialize_Prototype(iVertexNumX, iVertexNumY)))
+    {
+        MSG_BOX(TEXT("Failed to Created : CVIBuffer_Terrain"));
+
+        Safe_Release(pInstance);
+    }
+
+    return pInstance;
+}
+
+CVIBuffer_Terrain* CVIBuffer_Terrain::Create(LPDIRECT3DDEVICE9 pGraphic_Device, const wstring& strHeightMapFilePath)
+{
+    CVIBuffer_Terrain* pInstance = new CVIBuffer_Terrain(pGraphic_Device);
+    if (FAILED(pInstance->Initialize_Prototype(strHeightMapFilePath)))
+    {
+        MSG_BOX(TEXT("Failed to Created : CVIBuffer_Terrain"));
+
+        Safe_Release(pInstance);
+    }
+
+    return pInstance;
+}
+
+CComponent* CVIBuffer_Terrain::Clone(void* pArg)
+{
+    CVIBuffer_Terrain* pInstance = new CVIBuffer_Terrain(*this);
+    if (FAILED(pInstance->Initialize(pArg)))
+    {
+        MSG_BOX(TEXT("Failed to Created : CVIBuffer_Terrain"));
+
+        Safe_Release(pInstance);
+    }
+
+    return pInstance;
+}
+
+void CVIBuffer_Terrain::Free()
+{
+    //카메라는 플레이어 생성 뒤에 생성해주기.
+    //if (false == m_bIsCloned)
+    //    Safe_Delete_Array(m_pVerticesPos);
+
+    __super::Free();
+}

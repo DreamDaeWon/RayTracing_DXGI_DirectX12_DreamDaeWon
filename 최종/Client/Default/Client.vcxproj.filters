@@ -1,0 +1,1036 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="98. Default">
+      <UniqueIdentifier>{d31d0a70-ef25-421d-8c2e-4569ae0912c3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="00. MainApp">
+      <UniqueIdentifier>{33cfe3ed-5abc-4f18-a155-f603cf1dfc39}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="99. Defines">
+      <UniqueIdentifier>{2d82950d-063d-42c4-9089-8a0f19b113c6}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="01. Levels">
+      <UniqueIdentifier>{4c441ee0-6893-4137-94f5-37021b6b094b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="01. Levels\00. Level_loading">
+      <UniqueIdentifier>{ed2f4ff0-b346-4c5a-be71-dcedc3be3509}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="01. Levels\01. Level_Logo">
+      <UniqueIdentifier>{2162bf73-9d25-4005-8772-7f61823c2646}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="01. Levels\00. Level_loading\00. Loader">
+      <UniqueIdentifier>{479cd6de-990f-40b7-8342-4c61ed83176e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="01. Levels\02. Level_GamePlay">
+      <UniqueIdentifier>{c50f9e04-25dc-4f17-9196-1b6c944934ba}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects">
+      <UniqueIdentifier>{d51a4527-8501-4b7d-b4a8-1685dc5ee45a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\00. BackGround">
+      <UniqueIdentifier>{40b1e90f-5f65-4ef7-a7ca-74b2376970df}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\02. Terrain">
+      <UniqueIdentifier>{6957efe0-b612-4c9b-a1d6-775b974d8c5e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\03. Camera_Free">
+      <UniqueIdentifier>{431d2906-8175-4fc2-8f3c-7578fddca0cd}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\04. Camera_Player">
+      <UniqueIdentifier>{74e532bf-9327-4cf2-859c-44d94ec28664}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\01. LandObject">
+      <UniqueIdentifier>{07eebde5-492e-4a2b-b627-f8b9ad118241}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\01. LandObject\00. Player">
+      <UniqueIdentifier>{9cb5fbae-fcd1-44e7-a4fd-b7c4197e45cc}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\01. LandObject\01. Monster">
+      <UniqueIdentifier>{f2b93374-960e-4645-99f0-f595395207e3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\05. Sky">
+      <UniqueIdentifier>{6208c147-669a-4a6d-b4a4-6859e2d96707}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\06. UI">
+      <UniqueIdentifier>{3859b1b6-0ca7-42e9-bcd6-97de3a441c55}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\06. UI\00. PlayerHpUI">
+      <UniqueIdentifier>{8c027f75-03e7-45ea-a82d-0caded9e97a1}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\06. UI\01. MonsterArlertUI">
+      <UniqueIdentifier>{8f93ac65-ef94-4e4c-81f7-8f4b1551d21b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\07. Effect">
+      <UniqueIdentifier>{da63bc15-d97f-40aa-93be-2d28c9281bb7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\06. UI\02. UI_Player">
+      <UniqueIdentifier>{c1d6acd7-2514-47ff-a59f-aba92c918a03}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\06. UI\03. QAim">
+      <UniqueIdentifier>{bff62b8f-237e-4213-b350-c3603c8412c2}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\06. UI\04. UI_Monster">
+      <UniqueIdentifier>{ab3e4f4e-1757-40ae-80d9-d48654b5c574}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\01. LandObject\00. Player\00. Skill">
+      <UniqueIdentifier>{f919748e-bafa-4410-a43f-ba8ef2d2b1e3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\01. LandObject\00. Player\00. Skill\00. Barrier">
+      <UniqueIdentifier>{5ee915fa-a134-46e2-8b53-b5d920f518d2}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\01. LandObject\00. Player\01. Weapon">
+      <UniqueIdentifier>{987661a3-e5a8-4c89-9bd1-3d5dfd170a67}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="03. Component">
+      <UniqueIdentifier>{b82a611e-43b5-42cf-baf8-9174b92834c0}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="03. Component\00. State">
+      <UniqueIdentifier>{d46d036a-3329-445d-bd99-e997860d7b10}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\08. Bullet">
+      <UniqueIdentifier>{1d595bab-c4a1-43c1-b64a-3244767bfb0e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\02. Terrain\00. Tile">
+      <UniqueIdentifier>{ff2bef42-472b-4933-9f84-d62824ad3e67}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\01. LandObject\01. Monster\Boss">
+      <UniqueIdentifier>{74081186-32fe-4672-9975-d61da7e82591}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\01. LandObject\01. Monster\Boss\Yeti">
+      <UniqueIdentifier>{bd4caef4-0a3c-4367-9a90-cff07c089492}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\01. LandObject\02. Object_Box">
+      <UniqueIdentifier>{13a92e9c-2a1e-44f5-9d0d-f4bc5c0283fe}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\09. Wall">
+      <UniqueIdentifier>{b9450858-3ae3-4ed5-bd7e-4817628ba05b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\01. LandObject\00. Player\01. Weapon\00. Pupa">
+      <UniqueIdentifier>{03b6196c-2496-42bd-90e2-cd1e6cfa6e19}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\01. LandObject\00. Player\01. Weapon\01. Rambo">
+      <UniqueIdentifier>{996cac66-b421-4fa4-bd92-c52fdd53fb0e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\01. LandObject\00. Player\01. Weapon\02. Sasin">
+      <UniqueIdentifier>{e4fcc09e-0635-402b-91bc-2a075f8217cb}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\01. LandObject\00. Player\01. Weapon\03. Sparrow">
+      <UniqueIdentifier>{c4c7dec1-bb10-4296-8792-463057038b11}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\01. LandObject\00. Player\01. Weapon\04. SharkBlood">
+      <UniqueIdentifier>{25e497d2-7774-436d-b98d-3ac1ebb61fed}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\01. LandObject\00. Player\01. Weapon\05. Atlas">
+      <UniqueIdentifier>{a6334f5d-0507-4051-8bdf-07262b40b1f4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\06. UI\02. UI_Player\00. UI_Player_Weapon">
+      <UniqueIdentifier>{770accf5-01a2-460b-aafd-9a7a41eee7a5}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\06. UI\02. UI_Player\01. UI_Player_Skill">
+      <UniqueIdentifier>{6c421442-907b-4008-94a0-1cce15a1fb57}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\01. LandObject\00. Player\00. Skill\01. Roll">
+      <UniqueIdentifier>{5e5c2298-371b-4a8f-9dbe-26c4af2e9870}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\07. Effect\00. Source">
+      <UniqueIdentifier>{3c59864f-2c6c-4927-9912-919d369730b6}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\07. Effect\01. Processed">
+      <UniqueIdentifier>{6b57bcdd-f958-4d9c-86fe-daabd2c40a69}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\07. Effect\00. Source\00. Splat">
+      <UniqueIdentifier>{c5727d25-5bf4-43ba-a50b-b6d6c9eea23b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\07. Effect\00. Source\02. Sparkle">
+      <UniqueIdentifier>{2019d495-e77a-423d-a250-13df6349b10e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\07. Effect\00. Source\01. Cloud">
+      <UniqueIdentifier>{455cc658-c17c-409e-9bf5-2286edd45f5c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\07. Effect\01. Processed\01. Hit_Bullet">
+      <UniqueIdentifier>{e9539214-1d34-4c65-8261-dfb3970ba24d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\07. Effect\01. Processed\00. Player_Move">
+      <UniqueIdentifier>{3bf4e7fa-c048-433b-bdf4-53b9fcfce3f4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\07. Effect\00. Source\03. Explosion">
+      <UniqueIdentifier>{edda253d-fc71-4784-95ed-ab53882bc49e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\01. LandObject\01. Monster\Red_Fly">
+      <UniqueIdentifier>{d9f2162a-a33e-417d-ac47-2567576a4e65}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\01. LandObject\01. Monster\MonsterBullet">
+      <UniqueIdentifier>{74ea919d-4d38-4681-9ba6-20d292f3a7b4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\01. LandObject\01. Monster\Three_Red_Eyes">
+      <UniqueIdentifier>{3430087c-314c-4e88-87d7-a80d14281385}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\01. LandObject\01. Monster\White_Fly">
+      <UniqueIdentifier>{d8cd2dc3-1ccc-4d70-b6bc-0017b1b8a453}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\01. LandObject\01. Monster\Jump_PinkSlime">
+      <UniqueIdentifier>{d0f41d93-0011-486c-946b-8e7ebc66a220}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\01. LandObject\03. Item">
+      <UniqueIdentifier>{e5105630-e2a6-4f3b-bd47-314f58c02638}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\01. LandObject\03. Item\00. Item_Weapon">
+      <UniqueIdentifier>{cb9f341c-086f-49ce-aa07-fbc4900b3508}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\01. LandObject\01. Monster\Grenade_Man">
+      <UniqueIdentifier>{be4c5a6a-190f-4bb8-ac00-0fdad1bc5c1f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\01. LandObject\01. Monster\MonsterBullet\99. Base">
+      <UniqueIdentifier>{f7ae6cc2-215f-4704-8c60-4c8bcd0b1614}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\01. LandObject\01. Monster\MonsterBullet\00. MonsterBullet">
+      <UniqueIdentifier>{3f7f2c81-b913-46da-b7ed-deed977d5d9e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\01. LandObject\01. Monster\MonsterBullet\01. Red_Monster_Bullet">
+      <UniqueIdentifier>{35fc7181-5dc3-4aa1-b683-17aa6209d552}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\01. LandObject\01. Monster\MonsterBullet\02. White_Monster_Bullet">
+      <UniqueIdentifier>{da576221-21db-41db-af54-8b46bce0f891}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\01. LandObject\03. Item\01. Item_Hamburger">
+      <UniqueIdentifier>{1838a9b8-620b-48b1-bf88-adf6d7cec3b1}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\07. Effect\00. Source\00. Splat\00. Splat">
+      <UniqueIdentifier>{4fe59b30-77bf-426e-8408-7f29cc0059c0}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\07. Effect\00. Source\00. Splat\01. SplatOrange">
+      <UniqueIdentifier>{4f876e6c-fb94-4e8f-a418-1db35c816949}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\07. Effect\00. Source\00. Splat\02. SplatBlue">
+      <UniqueIdentifier>{ac6cae75-c153-4162-a46d-1a153b62af1e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\07. Effect\00. Source\00. Splat\03. SplatDefault">
+      <UniqueIdentifier>{9b3fe2a7-55d6-4b08-8127-eb7847854aa0}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\06. UI\05. UI_Boss">
+      <UniqueIdentifier>{855268c9-e2ec-4077-b407-917ecdcde8f7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="01. Levels\06. Level_SnowBoss">
+      <UniqueIdentifier>{2b5dea2e-d604-4956-b5df-d4a1972e8475}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="01. Levels\03. Level_Normal1">
+      <UniqueIdentifier>{8bc86da4-8eab-44ef-ad59-8a7e10361a15}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="01. Levels\04. Level_1945">
+      <UniqueIdentifier>{96f732c8-6a0b-4586-9514-513ca35c5f90}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="01. Levels\05. Level_Normal2">
+      <UniqueIdentifier>{f7dcbb4a-621e-4fb0-bb09-da3e5de7923a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\01. LandObject\01. Monster\Dummy">
+      <UniqueIdentifier>{f71724ed-1be0-40a8-9182-a3aff508a707}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\07. Effect\00. Source\00. Splat\04. Splat_White_Circle">
+      <UniqueIdentifier>{8def0c82-0314-4abc-8fa6-506cfd5891c1}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\07. Effect\00. Source\00. Splat\05. Splat_Sansin">
+      <UniqueIdentifier>{2f954716-e1a9-43c5-a44c-aba4ad59019a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\07. Effect\00. Source\00. Splat\06. Splat_Rambo">
+      <UniqueIdentifier>{f5bc0347-daa6-4b29-9104-316ab97dbf84}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\07. Effect\00. Source\00. Splat\05. Splat_Sansin\Sparkle">
+      <UniqueIdentifier>{16713145-14a3-4d53-81b5-d13032d9245e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\07. Effect\00. Source\00. Splat\01. SplatOrange\Orange_Circle">
+      <UniqueIdentifier>{8cf093b4-9cfc-4a48-a8bc-a29b9484a5ac}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\06. UI\06. UI_Sparrow">
+      <UniqueIdentifier>{be8bc18f-3372-4d81-9f5a-de20fdf91b9d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\10. ClientCollision">
+      <UniqueIdentifier>{7584a79c-50fa-4087-b5f6-15e44a17b9dc}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\11. TrailRenderer">
+      <UniqueIdentifier>{f6515bfb-9ef7-439c-92e9-358f6ad9bdf9}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\01. LandObject\04. AirPlaneDW">
+      <UniqueIdentifier>{b1537d07-d8ed-4645-8847-9e5eae3d3b02}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\01. LandObject\01. Monster\1945">
+      <UniqueIdentifier>{c9a42d2a-c15c-4d0a-8aa2-e1f26c613fd7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\01. LandObject\01. Monster\1945\ShootMonster">
+      <UniqueIdentifier>{d654a033-63eb-4f00-9aae-84c18a81070e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\01. LandObject\01. Monster\1945\Moonstone">
+      <UniqueIdentifier>{a6bfa255-7a45-4475-b01f-a02fc68e52e7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\06. UI\07. UI_AirPlane">
+      <UniqueIdentifier>{759c85b0-0c66-4f8c-bf42-40698203a185}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\01. LandObject\01. Monster\Steam">
+      <UniqueIdentifier>{27e4b6e0-de77-42d7-8aaf-a4f579261042}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\01. LandObject\01. Monster\Steam\SteamAttack">
+      <UniqueIdentifier>{b3f37579-2813-41de-b46d-f2adcfff5b5f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\01. LandObject\01. Monster\Steam\RedRect">
+      <UniqueIdentifier>{b8cc2011-8884-4578-a73e-0f7ecfb6202d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\01. LandObject\05. Comet">
+      <UniqueIdentifier>{ac5db539-f8c4-4e82-a4cd-3dbe2e084c34}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\01. LandObject\04. AirPlaneDW\00. TerretBody">
+      <UniqueIdentifier>{695b7b1e-44c6-457b-aebf-fb07cdfa9b05}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\01. LandObject\04. AirPlaneDW\01. TerretMouse">
+      <UniqueIdentifier>{056b088c-6f5d-4822-b785-f45f50c4878b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\01. LandObject\06. Trigger">
+      <UniqueIdentifier>{4a31c468-9153-46b8-b945-c2f55f732af4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\01. LandObject\06. Trigger\00. Door">
+      <UniqueIdentifier>{2a4e9822-5672-4782-894f-4fbf21dc701d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\01. LandObject\04. AirPlaneDW\02. Emp">
+      <UniqueIdentifier>{53fcfa84-bb4d-4e9e-a590-88d62f1b57c9}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\06. UI\08. UI_Damage">
+      <UniqueIdentifier>{8259cd8b-ee15-4bc7-9cf1-6158712a692f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\01. LandObject\06. Trigger\01. BlackHole">
+      <UniqueIdentifier>{c312e68f-cfd3-45de-8029-2db059dbd981}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\01. LandObject\06. Trigger\02. Summon">
+      <UniqueIdentifier>{0805af29-6812-4797-94ac-b6548a33df38}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\01. LandObject\06. Trigger\03. Camera">
+      <UniqueIdentifier>{e196e36d-c34f-441c-ba90-473751b357ed}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\01. LandObject\03. Item\02. Item_1945">
+      <UniqueIdentifier>{f7667677-951e-4384-980f-278b1da0c0ee}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\01. LandObject\07. SpawnEffect">
+      <UniqueIdentifier>{559ebb81-12ca-43e5-ab4c-9d942a5a096e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\01. LandObject\01. Monster\1945\ShootMonster\Bullet">
+      <UniqueIdentifier>{2722de16-80ad-4483-a2e6-90763b7b0563}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\01. LandObject\01. Monster\1945\Boss">
+      <UniqueIdentifier>{4102f260-ce68-4289-9001-da2cc6b4ae3d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\01. LandObject\01. Monster\1945\Boss\Layser">
+      <UniqueIdentifier>{39dfcb0c-bed0-4a77-8098-96089d0871b4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\07. Effect\00. Source\04. Item_Effect">
+      <UniqueIdentifier>{9b2be585-43aa-4850-b10c-8d689afa39db}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\00. BackGround\Loading">
+      <UniqueIdentifier>{a85a15c3-450f-4a9c-8c4a-8cfcd357c46b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\00. BackGround\Logo">
+      <UniqueIdentifier>{7e2c619c-3027-4109-bfd6-150fba489a43}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\01. LandObject\03. Item\03. Item_Power">
+      <UniqueIdentifier>{bccf8c3d-69f8-4060-b7ba-71e709115436}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\01. LandObject\08. Blizzard">
+      <UniqueIdentifier>{fa654b17-b423-489a-99fa-5f2be0a5695d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\07. Effect\00. Source\05. Destroy_Effect">
+      <UniqueIdentifier>{57749dd0-9229-48d7-9737-36e7d2b6621c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\07. Effect\00. Source\06. Boss_Effect">
+      <UniqueIdentifier>{0f8c8966-8a50-42cc-aaef-f2fc6cd90eec}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. GameObjects\06. UI\09. UI_Ending">
+      <UniqueIdentifier>{2c133a9e-0873-4009-9d19-3c90da9922c4}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="Client.h">
+      <Filter>98. Default</Filter>
+    </ClInclude>
+    <ClInclude Include="framework.h">
+      <Filter>98. Default</Filter>
+    </ClInclude>
+    <ClInclude Include="pch.h">
+      <Filter>98. Default</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource.h">
+      <Filter>98. Default</Filter>
+    </ClInclude>
+    <ClInclude Include="targetver.h">
+      <Filter>98. Default</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\MainApp.h">
+      <Filter>00. MainApp</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\Client_Defines.h">
+      <Filter>99. Defines</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\Level_Loading.h">
+      <Filter>01. Levels\00. Level_loading</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\Loader.h">
+      <Filter>01. Levels\00. Level_loading\00. Loader</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\Level_GamePlay.h">
+      <Filter>01. Levels\02. Level_GamePlay</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\Level_Logo.h">
+      <Filter>01. Levels\01. Level_Logo</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\Terrain.h">
+      <Filter>02. GameObjects\02. Terrain</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\Camera_Free.h">
+      <Filter>02. GameObjects\03. Camera_Free</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\Player.h">
+      <Filter>02. GameObjects\01. LandObject\00. Player</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\Monster.h">
+      <Filter>02. GameObjects\01. LandObject\01. Monster</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\LandObject.h">
+      <Filter>02. GameObjects\01. LandObject</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\Sky.h">
+      <Filter>02. GameObjects\05. Sky</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\PlayerHpUI.h">
+      <Filter>02. GameObjects\06. UI\00. PlayerHpUI</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\MonsterArlertUI.h">
+      <Filter>02. GameObjects\06. UI\01. MonsterArlertUI</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\UI_Player.h">
+      <Filter>02. GameObjects\06. UI\02. UI_Player</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\UI_Base.h">
+      <Filter>02. GameObjects\06. UI</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\UI_Monster.h">
+      <Filter>02. GameObjects\06. UI\04. UI_Monster</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\Barrier.h">
+      <Filter>02. GameObjects\01. LandObject\00. Player\00. Skill\00. Barrier</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\Camera_Player.h">
+      <Filter>02. GameObjects\04. Camera_Player</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\Camera_Player_DW.h">
+      <Filter>02. GameObjects\04. Camera_Player</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\QAim.h">
+      <Filter>02. GameObjects\06. UI\03. QAim</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\Effect_Base.h">
+      <Filter>02. GameObjects\07. Effect</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\State.h">
+      <Filter>03. Component\00. State</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\Bullet.h">
+      <Filter>02. GameObjects\08. Bullet</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\Tile.h">
+      <Filter>02. GameObjects\02. Terrain\00. Tile</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\BossYeti.h">
+      <Filter>02. GameObjects\01. LandObject\01. Monster\Boss\Yeti</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\Snow.h">
+      <Filter>02. GameObjects\01. LandObject\01. Monster\Boss\Yeti</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\Object_Box.h">
+      <Filter>02. GameObjects\01. LandObject\02. Object_Box</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\Wall.h">
+      <Filter>02. GameObjects\09. Wall</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\Weapon.h">
+      <Filter>02. GameObjects\01. LandObject\00. Player\01. Weapon</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\Weapon_Pupa.h">
+      <Filter>02. GameObjects\01. LandObject\00. Player\01. Weapon\00. Pupa</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\Weapon_Rambo.h">
+      <Filter>02. GameObjects\01. LandObject\00. Player\01. Weapon\01. Rambo</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\Weapon_Sasin.h">
+      <Filter>02. GameObjects\01. LandObject\00. Player\01. Weapon\02. Sasin</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\Weapon_Sparrow.h">
+      <Filter>02. GameObjects\01. LandObject\00. Player\01. Weapon\03. Sparrow</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\Weapon_SharkBlood.h">
+      <Filter>02. GameObjects\01. LandObject\00. Player\01. Weapon\04. SharkBlood</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\Weapon_Atlas.h">
+      <Filter>02. GameObjects\01. LandObject\00. Player\01. Weapon\05. Atlas</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\UI_Player_Weapon.h">
+      <Filter>02. GameObjects\06. UI\02. UI_Player\00. UI_Player_Weapon</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\UI_Player_Skill.h">
+      <Filter>02. GameObjects\06. UI\02. UI_Player\01. UI_Player_Skill</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\Roll.h">
+      <Filter>02. GameObjects\01. LandObject\00. Player\00. Skill\01. Roll</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\Player_Skill.h">
+      <Filter>02. GameObjects\01. LandObject\00. Player\00. Skill</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\IceSplinter.h">
+      <Filter>02. GameObjects\01. LandObject\01. Monster\Boss\Yeti</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\RedCircle.h">
+      <Filter>02. GameObjects\01. LandObject\01. Monster\Boss\Yeti</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\Level_SnowBoss.h">
+      <Filter>01. Levels\06. Level_SnowBoss</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\Effect_Cloud.h">
+      <Filter>02. GameObjects\07. Effect\00. Source\01. Cloud</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\Effect_Player_Move.h">
+      <Filter>02. GameObjects\07. Effect\01. Processed\00. Player_Move</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\Effect_Sparkle.h">
+      <Filter>02. GameObjects\07. Effect\00. Source\02. Sparkle</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\Effect_Hit_Bullet.h">
+      <Filter>02. GameObjects\07. Effect\01. Processed\01. Hit_Bullet</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\Explosion.h">
+      <Filter>02. GameObjects\07. Effect\00. Source\03. Explosion</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\Monster_Red_Fly.h">
+      <Filter>02. GameObjects\01. LandObject\01. Monster\Red_Fly</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\Monster_Three_Red_Eyes.h">
+      <Filter>02. GameObjects\01. LandObject\01. Monster\Three_Red_Eyes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\Monster_White_Fly.h">
+      <Filter>02. GameObjects\01. LandObject\01. Monster\White_Fly</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\Monster_Jump_PinkSlime.h">
+      <Filter>02. GameObjects\01. LandObject\01. Monster\Jump_PinkSlime</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\Item.h">
+      <Filter>02. GameObjects\01. LandObject\03. Item</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\Item_Weapon.h">
+      <Filter>02. GameObjects\01. LandObject\03. Item\00. Item_Weapon</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\EarthQuake.h">
+      <Filter>02. GameObjects\01. LandObject\01. Monster\Boss\Yeti</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\Monster_Grenade_Man.h">
+      <Filter>02. GameObjects\01. LandObject\01. Monster\Grenade_Man</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\Monster_Bullet_Base.h">
+      <Filter>02. GameObjects\01. LandObject\01. Monster\MonsterBullet\99. Base</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\White_Monster_Bullet.h">
+      <Filter>02. GameObjects\01. LandObject\01. Monster\MonsterBullet\02. White_Monster_Bullet</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\Red_Monster_Bullet.h">
+      <Filter>02. GameObjects\01. LandObject\01. Monster\MonsterBullet\01. Red_Monster_Bullet</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\MonsterBullet.h">
+      <Filter>02. GameObjects\01. LandObject\01. Monster\MonsterBullet\00. MonsterBullet</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\Item_Hamburger.h">
+      <Filter>02. GameObjects\01. LandObject\03. Item\01. Item_Hamburger</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\Splat_Default.h">
+      <Filter>02. GameObjects\07. Effect\00. Source\00. Splat\03. SplatDefault</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\Effect_Splat_Orange.h">
+      <Filter>02. GameObjects\07. Effect\00. Source\00. Splat\01. SplatOrange</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\Effect_Splat_Blue.h">
+      <Filter>02. GameObjects\07. Effect\00. Source\00. Splat\02. SplatBlue</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\UI_Boss.h">
+      <Filter>02. GameObjects\06. UI\05. UI_Boss</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\Effect_Splat.h">
+      <Filter>02. GameObjects\07. Effect\00. Source\00. Splat\00. Splat</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\Level_Normal1.h">
+      <Filter>01. Levels\03. Level_Normal1</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\Level_Normal2.h">
+      <Filter>01. Levels\05. Level_Normal2</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\Level_1945.h">
+      <Filter>01. Levels\04. Level_1945</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\Dummy.h">
+      <Filter>02. GameObjects\01. LandObject\01. Monster\Dummy</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\Effect_Sasin_Spacle.h">
+      <Filter>02. GameObjects\07. Effect\00. Source\00. Splat\05. Splat_Sansin\Sparkle</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\Effect_Orange_Circle.h">
+      <Filter>02. GameObjects\07. Effect\00. Source\00. Splat\01. SplatOrange\Orange_Circle</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\Effect_Splat_Rambo.h">
+      <Filter>02. GameObjects\07. Effect\00. Source\00. Splat\06. Splat_Rambo</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\Effect_Splat_Sasin.h">
+      <Filter>02. GameObjects\07. Effect\00. Source\00. Splat\05. Splat_Sansin</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\Effect_Splat_White_Circle.h">
+      <Filter>02. GameObjects\07. Effect\00. Source\00. Splat\04. Splat_White_Circle</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\UI_Sparrow.h">
+      <Filter>02. GameObjects\06. UI\06. UI_Sparrow</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\ClientCollision.h">
+      <Filter>02. GameObjects\10. ClientCollision</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\AirPlane.h">
+      <Filter>02. GameObjects\01. LandObject\04. AirPlaneDW</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\Camera_Player_DW2.h">
+      <Filter>02. GameObjects\04. Camera_Player</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\TrailRenderer.h">
+      <Filter>02. GameObjects\11. TrailRenderer</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\MoonStone.h">
+      <Filter>02. GameObjects\01. LandObject\01. Monster\1945\Moonstone</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\ShootMonster.h">
+      <Filter>02. GameObjects\01. LandObject\01. Monster\1945\ShootMonster</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\QAim2.h">
+      <Filter>02. GameObjects\06. UI\03. QAim</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\UI_AirPlane.h">
+      <Filter>02. GameObjects\06. UI\07. UI_AirPlane</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\Steam.h">
+      <Filter>02. GameObjects\01. LandObject\01. Monster\Steam</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\RedRect.h">
+      <Filter>02. GameObjects\01. LandObject\01. Monster\Steam\RedRect</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\SteamAttack.h">
+      <Filter>02. GameObjects\01. LandObject\01. Monster\Steam\SteamAttack</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\Comet.h">
+      <Filter>02. GameObjects\01. LandObject\05. Comet</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\AirPlaneTurretBody.h">
+      <Filter>02. GameObjects\01. LandObject\04. AirPlaneDW\00. TerretBody</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\AirPlaneTurretMouse.h">
+      <Filter>02. GameObjects\01. LandObject\04. AirPlaneDW\01. TerretMouse</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\Trigger_Door.h">
+      <Filter>02. GameObjects\01. LandObject\06. Trigger\00. Door</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\Emp.h">
+      <Filter>02. GameObjects\01. LandObject\04. AirPlaneDW\02. Emp</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\UI_Damage.h">
+      <Filter>02. GameObjects\06. UI\08. UI_Damage</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\Item_1945.h">
+      <Filter>02. GameObjects\01. LandObject\03. Item\02. Item_1945</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\SpawnEffect.h">
+      <Filter>02. GameObjects\01. LandObject\07. SpawnEffect</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\ShootMonsterBullet.h">
+      <Filter>02. GameObjects\01. LandObject\01. Monster\1945\ShootMonster\Bullet</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\BossBattleCruiser.h">
+      <Filter>02. GameObjects\01. LandObject\01. Monster\1945\Boss</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\BossLayser.h">
+      <Filter>02. GameObjects\01. LandObject\01. Monster\1945\Boss\Layser</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\Trigger_Camera.h">
+      <Filter>02. GameObjects\01. LandObject\06. Trigger\03. Camera</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\Trigger_BlackHole.h">
+      <Filter>02. GameObjects\01. LandObject\06. Trigger\01. BlackHole</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\Trigger_Summon.h">
+      <Filter>02. GameObjects\01. LandObject\06. Trigger\02. Summon</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\Item_Effect.h">
+      <Filter>02. GameObjects\07. Effect\00. Source\04. Item_Effect</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\BackGround.h">
+      <Filter>02. GameObjects\00. BackGround\Logo</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\Loading.h">
+      <Filter>02. GameObjects\00. BackGround\Loading</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\Item_Power.h">
+      <Filter>02. GameObjects\01. LandObject\03. Item\03. Item_Power</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\Blizzard.h">
+      <Filter>02. GameObjects\01. LandObject\08. Blizzard</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\Boss_Destroy_Effect.h">
+      <Filter>02. GameObjects\07. Effect\00. Source\06. Boss_Effect</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\Destroy_Effect.h">
+      <Filter>02. GameObjects\07. Effect\00. Source\05. Destroy_Effect</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\UI_Ending.h">
+      <Filter>02. GameObjects\06. UI\09. UI_Ending</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="Client.cpp">
+      <Filter>98. Default</Filter>
+    </ClCompile>
+    <ClCompile Include="pch.cpp">
+      <Filter>98. Default</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\MainApp.cpp">
+      <Filter>00. MainApp</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\Level_Loading.cpp">
+      <Filter>01. Levels\00. Level_loading</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\Loader.cpp">
+      <Filter>01. Levels\00. Level_loading\00. Loader</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\Level_Logo.cpp">
+      <Filter>01. Levels\01. Level_Logo</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\Level_GamePlay.cpp">
+      <Filter>01. Levels\02. Level_GamePlay</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\Terrain.cpp">
+      <Filter>02. GameObjects\02. Terrain</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\Camera_Free.cpp">
+      <Filter>02. GameObjects\03. Camera_Free</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\Camera_Player.cpp">
+      <Filter>02. GameObjects\04. Camera_Player</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\Player.cpp">
+      <Filter>02. GameObjects\01. LandObject\00. Player</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\Monster.cpp">
+      <Filter>02. GameObjects\01. LandObject\01. Monster</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\LandObject.cpp">
+      <Filter>02. GameObjects\01. LandObject</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\Sky.cpp">
+      <Filter>02. GameObjects\05. Sky</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\PlayerHpUI.cpp">
+      <Filter>02. GameObjects\06. UI\00. PlayerHpUI</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\MonsterArlertUI.cpp">
+      <Filter>02. GameObjects\06. UI\01. MonsterArlertUI</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\UI_Player.cpp">
+      <Filter>02. GameObjects\06. UI\02. UI_Player</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\UI_Base.cpp">
+      <Filter>02. GameObjects\06. UI</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\UI_Monster.cpp">
+      <Filter>02. GameObjects\06. UI\04. UI_Monster</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\Barrier.cpp">
+      <Filter>02. GameObjects\01. LandObject\00. Player\00. Skill\00. Barrier</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\Camera_Player_DW.cpp">
+      <Filter>02. GameObjects\04. Camera_Player</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\QAim.cpp">
+      <Filter>02. GameObjects\06. UI\03. QAim</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\Effect_Base.cpp">
+      <Filter>02. GameObjects\07. Effect</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\State.cpp">
+      <Filter>03. Component\00. State</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\Bullet.cpp">
+      <Filter>02. GameObjects\08. Bullet</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\Tile.cpp">
+      <Filter>02. GameObjects\02. Terrain\00. Tile</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\BossYeti.cpp">
+      <Filter>02. GameObjects\01. LandObject\01. Monster\Boss\Yeti</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\Snow.cpp">
+      <Filter>02. GameObjects\01. LandObject\01. Monster\Boss\Yeti</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\Object_Box.cpp">
+      <Filter>02. GameObjects\01. LandObject\02. Object_Box</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\Wall.cpp">
+      <Filter>02. GameObjects\09. Wall</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\Weapon.cpp">
+      <Filter>02. GameObjects\01. LandObject\00. Player\01. Weapon</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\Weapon_Pupa.cpp">
+      <Filter>02. GameObjects\01. LandObject\00. Player\01. Weapon\00. Pupa</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\Weapon_Rambo.cpp">
+      <Filter>02. GameObjects\01. LandObject\00. Player\01. Weapon\01. Rambo</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\Weapon_Sasin.cpp">
+      <Filter>02. GameObjects\01. LandObject\00. Player\01. Weapon\02. Sasin</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\Weapon_Sparrow.cpp">
+      <Filter>02. GameObjects\01. LandObject\00. Player\01. Weapon\03. Sparrow</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\Weapon_SharkBlood.cpp">
+      <Filter>02. GameObjects\01. LandObject\00. Player\01. Weapon\04. SharkBlood</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\Weapon_Atlas.cpp">
+      <Filter>02. GameObjects\01. LandObject\00. Player\01. Weapon\05. Atlas</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\Player_Skill.cpp">
+      <Filter>02. GameObjects\01. LandObject\00. Player\00. Skill</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\Roll.cpp">
+      <Filter>02. GameObjects\01. LandObject\00. Player\00. Skill\01. Roll</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\UI_Player_Skill.cpp">
+      <Filter>02. GameObjects\06. UI\02. UI_Player\01. UI_Player_Skill</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\UI_Player_Weapon.cpp">
+      <Filter>02. GameObjects\06. UI\02. UI_Player\00. UI_Player_Weapon</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\IceSplinter.cpp">
+      <Filter>02. GameObjects\01. LandObject\01. Monster\Boss\Yeti</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\RedCircle.cpp">
+      <Filter>02. GameObjects\01. LandObject\01. Monster\Boss\Yeti</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\Level_SnowBoss.cpp">
+      <Filter>01. Levels\06. Level_SnowBoss</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\Effect_Cloud.cpp">
+      <Filter>02. GameObjects\07. Effect\00. Source\01. Cloud</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\Effect_Player_Move.cpp">
+      <Filter>02. GameObjects\07. Effect\01. Processed\00. Player_Move</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\Effect_Sparkle.cpp">
+      <Filter>02. GameObjects\07. Effect\00. Source\02. Sparkle</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\Effect_Hit_Bullet.cpp">
+      <Filter>02. GameObjects\07. Effect\01. Processed\01. Hit_Bullet</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\Explosion.cpp">
+      <Filter>02. GameObjects\07. Effect\00. Source\03. Explosion</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\Monster_Red_Fly.cpp">
+      <Filter>02. GameObjects\01. LandObject\01. Monster\Red_Fly</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\Monster_Three_Red_Eyes.cpp">
+      <Filter>02. GameObjects\01. LandObject\01. Monster\Three_Red_Eyes</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\Monster_White_Fly.cpp">
+      <Filter>02. GameObjects\01. LandObject\01. Monster\White_Fly</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\Monster_Jump_PinkSlime.cpp">
+      <Filter>02. GameObjects\01. LandObject\01. Monster\Jump_PinkSlime</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\Item.cpp">
+      <Filter>02. GameObjects\01. LandObject\03. Item</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\Item_Weapon.cpp">
+      <Filter>02. GameObjects\01. LandObject\03. Item\00. Item_Weapon</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\EarthQuake.cpp">
+      <Filter>02. GameObjects\01. LandObject\01. Monster\Boss\Yeti</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\Monster_Grenade_Man.cpp">
+      <Filter>02. GameObjects\01. LandObject\01. Monster\Grenade_Man</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\Monster_Bullet_Base.cpp">
+      <Filter>02. GameObjects\01. LandObject\01. Monster\MonsterBullet\99. Base</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\White_Monster_Bullet.cpp">
+      <Filter>02. GameObjects\01. LandObject\01. Monster\MonsterBullet\02. White_Monster_Bullet</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\Red_Monster_Bullet.cpp">
+      <Filter>02. GameObjects\01. LandObject\01. Monster\MonsterBullet\01. Red_Monster_Bullet</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\MonsterBullet.cpp">
+      <Filter>02. GameObjects\01. LandObject\01. Monster\MonsterBullet\00. MonsterBullet</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\Item_Hamburger.cpp">
+      <Filter>02. GameObjects\01. LandObject\03. Item\01. Item_Hamburger</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\UI_Boss.cpp">
+      <Filter>02. GameObjects\06. UI\05. UI_Boss</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\Splat_Default.cpp">
+      <Filter>02. GameObjects\07. Effect\00. Source\00. Splat\03. SplatDefault</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\Effect_Splat_Blue.cpp">
+      <Filter>02. GameObjects\07. Effect\00. Source\00. Splat\02. SplatBlue</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\Effect_Splat_Orange.cpp">
+      <Filter>02. GameObjects\07. Effect\00. Source\00. Splat\01. SplatOrange</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\Effect_Splat.cpp">
+      <Filter>02. GameObjects\07. Effect\00. Source\00. Splat\00. Splat</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\Level_Normal1.cpp">
+      <Filter>01. Levels\03. Level_Normal1</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\Level_Normal2.cpp">
+      <Filter>01. Levels\05. Level_Normal2</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\Level_1945.cpp">
+      <Filter>01. Levels\04. Level_1945</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\Dummy.cpp">
+      <Filter>02. GameObjects\01. LandObject\01. Monster\Dummy</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\Effect_Splat_Rambo.cpp">
+      <Filter>02. GameObjects\07. Effect\00. Source\00. Splat\06. Splat_Rambo</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\Effect_Splat_Sasin.cpp">
+      <Filter>02. GameObjects\07. Effect\00. Source\00. Splat\05. Splat_Sansin</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\Effect_Sasin_Spacle.cpp">
+      <Filter>02. GameObjects\07. Effect\00. Source\00. Splat\05. Splat_Sansin\Sparkle</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\Effect_Orange_Circle.cpp">
+      <Filter>02. GameObjects\07. Effect\00. Source\00. Splat\01. SplatOrange\Orange_Circle</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\Effect_Splat_White_Circle.cpp">
+      <Filter>02. GameObjects\07. Effect\00. Source\00. Splat\04. Splat_White_Circle</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\UI_Sparrow.cpp">
+      <Filter>02. GameObjects\06. UI\06. UI_Sparrow</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\ClientCollision.cpp">
+      <Filter>02. GameObjects\10. ClientCollision</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\TrailRenderer.cpp">
+      <Filter>02. GameObjects\11. TrailRenderer</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\AirPlane.cpp">
+      <Filter>02. GameObjects\01. LandObject\04. AirPlaneDW</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\ShootMonster.cpp">
+      <Filter>02. GameObjects\01. LandObject\01. Monster\1945\ShootMonster</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\QAim2.cpp">
+      <Filter>02. GameObjects\06. UI\03. QAim</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\MoonStone.cpp">
+      <Filter>02. GameObjects\01. LandObject\01. Monster\1945\Moonstone</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\Camera_Player_DW2.cpp">
+      <Filter>02. GameObjects\04. Camera_Player</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\UI_AirPlane.cpp">
+      <Filter>02. GameObjects\06. UI\07. UI_AirPlane</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\Steam.cpp">
+      <Filter>02. GameObjects\01. LandObject\01. Monster\Steam</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\RedRect.cpp">
+      <Filter>02. GameObjects\01. LandObject\01. Monster\Steam\RedRect</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\SteamAttack.cpp">
+      <Filter>02. GameObjects\01. LandObject\01. Monster\Steam\SteamAttack</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\Comet.cpp">
+      <Filter>02. GameObjects\01. LandObject\05. Comet</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\AirPlaneTurretMouse.cpp">
+      <Filter>02. GameObjects\01. LandObject\04. AirPlaneDW\01. TerretMouse</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\AirPlaneTurretBody.cpp">
+      <Filter>02. GameObjects\01. LandObject\04. AirPlaneDW\00. TerretBody</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\Emp.cpp">
+      <Filter>02. GameObjects\01. LandObject\04. AirPlaneDW\02. Emp</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\Trigger_Door.cpp">
+      <Filter>02. GameObjects\01. LandObject\06. Trigger\00. Door</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\UI_Damage.cpp">
+      <Filter>02. GameObjects\06. UI\08. UI_Damage</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\SpawnEffect.cpp">
+      <Filter>02. GameObjects\01. LandObject\07. SpawnEffect</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\Item_1945.cpp">
+      <Filter>02. GameObjects\01. LandObject\03. Item\02. Item_1945</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\BossBattleCruiser.cpp">
+      <Filter>02. GameObjects\01. LandObject\01. Monster\1945\Boss</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\BossLayser.cpp">
+      <Filter>02. GameObjects\01. LandObject\01. Monster\1945\Boss\Layser</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\ShootMonsterBullet.cpp">
+      <Filter>02. GameObjects\01. LandObject\01. Monster\1945\ShootMonster\Bullet</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\Trigger_BlackHole.cpp">
+      <Filter>02. GameObjects\01. LandObject\06. Trigger\01. BlackHole</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\Trigger_Camera.cpp">
+      <Filter>02. GameObjects\01. LandObject\06. Trigger\03. Camera</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\Trigger_Summon.cpp">
+      <Filter>02. GameObjects\01. LandObject\06. Trigger\02. Summon</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\Item_Effect.cpp">
+      <Filter>02. GameObjects\07. Effect\00. Source\04. Item_Effect</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\BackGround.cpp">
+      <Filter>02. GameObjects\00. BackGround\Logo</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\Loading.cpp">
+      <Filter>02. GameObjects\00. BackGround\Loading</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\Item_Power.cpp">
+      <Filter>02. GameObjects\01. LandObject\03. Item\03. Item_Power</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\Blizzard.cpp">
+      <Filter>02. GameObjects\01. LandObject\08. Blizzard</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\Boss_Destroy_Effect.cpp">
+      <Filter>02. GameObjects\07. Effect\00. Source\06. Boss_Effect</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\Destroy_Effect.cpp">
+      <Filter>02. GameObjects\07. Effect\00. Source\05. Destroy_Effect</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\UI_Ending.cpp">
+      <Filter>02. GameObjects\06. UI\09. UI_Ending</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="Client.ico">
+      <Filter>98. Default</Filter>
+    </Image>
+    <Image Include="small.ico">
+      <Filter>98. Default</Filter>
+    </Image>
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="Client.rc">
+      <Filter>98. Default</Filter>
+    </ResourceCompile>
+  </ItemGroup>
+</Project>

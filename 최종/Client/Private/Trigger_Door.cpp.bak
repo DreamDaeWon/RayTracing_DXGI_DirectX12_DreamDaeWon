@@ -1,0 +1,426 @@
+#include "pch.h"
+#include "Trigger_Door.h"
+#include "GameInstance.h"
+#include "Player.h"
+#include"Level_Loading.h"
+#include"Camera_Player_DW.h"
+
+CTrigger_Door::CTrigger_Door(LPDIRECT3DDEVICE9 pGraphic_Device) :
+	CLandObject(pGraphic_Device)
+{
+}
+
+CTrigger_Door::CTrigger_Door(const CTrigger_Door& rhs) :
+	CLandObject(rhs)
+{
+}
+
+HRESULT CTrigger_Door::Initialize_Prototype()
+{
+	if (FAILED(__super::Initialize_Prototype()))
+	{
+		MSG_BOX(TEXT("Failed to Initialize_Prototype : __super,CTrigger_Door"));
+		return E_FAIL;
+	}
+
+	return S_OK;
+}
+
+HRESULT CTrigger_Door::Initialize(void* pArg)
+{
+
+	if (pArg != nullptr)
+	{
+		TRIGGER_DESC* pDoorObjectDesc = (TRIGGER_DESC*)pArg;
+		m_vDoorLook = pDoorObjectDesc->vLook;
+		m_vDoorPos = pDoorObjectDesc->vPos;
+		m_fScale = pDoorObjectDesc->fScale;
+		m_fGoSpeed = pDoorObjectDesc->fSpeed;
+		m_iTexNum = pDoorObjectDesc->iTexNum;
+
+
+		LANDOBJECT_DESC* pLandObjectDesc = (LANDOBJECT_DESC*)pArg;
+		pLandObjectDesc->fSpeedPerSec = 1.f;
+		pLandObjectDesc->fRotationPerSec = D3DXToRadian(1.f);
+
+	}
+
+	if (FAILED(__super::Initialize(pArg)))
+	{
+
+		MSG_BOX(TEXT("Failed to Initialize : __super,CTrigger_Door"));
+		return E_FAIL;
+	}
+
+	if (FAILED(Add_Components()))
+	{
+		MSG_BOX(TEXT("Failed to Add_Components : __super,CTrigger_Door"));
+		return E_FAIL;
+	}
+
+	m_pTransformLeftDoor = CTransform::Create(m_pGraphic_Device);
+
+	if (nullptr == m_pTransformLeftDoor)
+	{
+		MSG_BOX(TEXT("nullptr == m_pTransform : CGameObject::Initialize"));
+		return E_FAIL;
+	}
+	if (FAILED(m_pTransformLeftDoor->Initialize(pArg)))
+	{
+		MSG_BOX(TEXT("Failed to Initialize : m_pTransform"));
+		return E_FAIL;
+	}
+
+	m_Components.emplace((TEXT("Com_Transform1")), m_pTransformLeftDoor);
+	Safe_AddRef(m_pTransformLeftDoor);
+
+
+	m_pTransform->Set_Scale(_float3(1.8f, 3.f, 1.f));
+
+	m_pTransformLeftDoor->Set_Scale(_float3(1.8f, 3.f, 1.f));
+
+	_float3 vScale = m_pTransform->Get_Scale();
+	
+	m_pTransform->Set_State(CTransform::STATE_LOOK, m_vDoorLook* vScale.z);
+	m_pTransformLeftDoor->Set_State(CTransform::STATE_LOOK, m_vDoorLook* vScale.z);
+	
+	m_pTransform->Set_State(CTransform::STATE_UP, _float3(0.f, 1.f, 0.f)* vScale.y);
+	m_pTransformLeftDoor->Set_State(CTransform::STATE_UP, _float3(0.f, 1.f, 0.f)* vScale.y);
+	
+	_float3 vRight  = *D3DXVec3Cross(&vRight, &_float3(0.f, 1.f, 0.f), &m_pTransform->Get_State(CTransform::STATE_LOOK));
+	m_pTransform->Set_State(CTransform::STATE_RIGHT, vRight * vScale.x);
+	m_pTransformLeftDoor->Set_State(CTransform::STATE_RIGHT, vRight * vScale.x);
+
+
+	m_pTransform->Set_State(CTransform::STATE_POSITION, m_vDoorPos);
+	if(m_vDoorLook==_float3(1.f,0.f,0.f))
+		m_pTransformLeftDoor->Set_State(CTransform::STATE_POSITION, m_vDoorPos + _float3(0.f, 0.f, 1.8f));
+	else
+		m_pTransformLeftDoor->Set_State(CTransform::STATE_POSITION, m_vDoorPos + _float3(1.8f, 0.f, 0.f));
+
+
+	m_pCollider_Com->Set_Range(2.3f);
+	m_pCollider_Com->Update_Collider_Info(*m_pTransformLeftDoor->Get_WorldMatrix()); // 작은 콜라이더: 다음 맵 이동
+	m_pCollider_Com1->Set_Range(4.5f);
+	m_pCollider_Com1->Update_Collider_Info(*m_pTransform->Get_WorldMatrix()); //큰 콜라이더: 문 열림
+
+
+	return S_OK;
+}
+
+_uint CTrigger_Door::Tick(_float fTimeDelta)
+{
+	if (nullptr == m_pCamera)
+	{
+		m_pCamera = dynamic_cast<CCamera_Player_DW*>(m_pGameInstance->Get_Object(LEVEL_STATIC, TEXT("Layer_Camera_Player")));
+		if (nullptr != m_pCamera)
+			Safe_AddRef(m_pCamera);
+	}
+
+	if (m_bDoor&&m_bOnce)
+	{
+		m_fTime += fTimeDelta;
+		m_pTransform->Go_Right(fTimeDelta);
+		m_pTransformLeftDoor->Go_Left(fTimeDelta);
+		m_pCamera->SetCameraShaking(true);
+
+	}
+	if (m_fTime > 2.f)
+	{
+		m_bOnce = false;
+		m_fTime = 0.f;
+		m_pCamera->SetCameraShaking(false);
+
+	}
+
+	__super::Tick(fTimeDelta);
+	//SetUp_OnTerrain();
+
+	return OBJECT_NOTHING;
+}
+
+void CTrigger_Door::Late_Tick(_float fTimeDelta)
+{
+	__super::Late_Tick(fTimeDelta);
+
+	Collision_Player();
+
+	m_pGameInstance->Add_RenderObject(CRenderer::RENDER_NONBLEND, this);
+
+}
+
+HRESULT CTrigger_Door::Render()
+{
+
+	_float3 vPos5 = m_pTransform->Get_State(CTransform::STATE_POSITION);
+	_float3 vPos6 = m_pTransformLeftDoor->Get_State(CTransform::STATE_POSITION);
+	//오른쪽문
+	if (FAILED(m_pTransform->Bind_WorldMatrix()))
+	{
+		MSG_BOX(TEXT("Failed to Bind_WorldMatrix : Render"));
+		return E_FAIL;
+	}
+	if (FAILED(m_pTextureCom->Bind_Texture(0, m_iTexNum)))
+	{
+		MSG_BOX(TEXT("Failed to Bind_Texture : Render"));
+		return E_FAIL;
+	}
+	if (FAILED(Set_RenderState()))
+	{
+		MSG_BOX(TEXT("Failed to Set_RenderState : Render"));
+		return E_FAIL;
+	}
+	if (FAILED(m_pVIBuffer_Com_RightDoor->Render()))
+	{
+		MSG_BOX(TEXT("Failed to Render : Render"));
+		return E_FAIL;
+	}
+	if (FAILED(Reset_RenderState()))
+	{
+		MSG_BOX(TEXT("Failed to Reset_RenderState : Render"));
+		return E_FAIL;
+	}
+	_uint iText = 0;
+	//왼쪽문
+	if (m_iTexNum == 1)
+	{
+		iText = 2;
+	}
+	if (FAILED(m_pTransformLeftDoor->Bind_WorldMatrix()))
+	{
+		MSG_BOX(TEXT("Failed to Bind_WorldMatrix : Render"));
+		return E_FAIL;
+	}
+	if (FAILED(m_pTextureCom->Bind_Texture(0, iText)))
+	{
+		MSG_BOX(TEXT("Failed to Bind_Texture : Render"));
+		return E_FAIL;
+	}
+	if (FAILED(Set_RenderState()))
+	{
+		MSG_BOX(TEXT("Failed to Set_RenderState : Render"));
+		return E_FAIL;
+	}
+	if (FAILED(m_pVIBuffer_Com_LeftDoor->Render()))
+	{
+		MSG_BOX(TEXT("Failed to Render : Render"));
+		return E_FAIL;
+	}
+	if (FAILED(Reset_RenderState()))
+	{
+		MSG_BOX(TEXT("Failed to Reset_RenderState : Render"));
+		return E_FAIL;
+	}
+	//가운데
+	m_vDoorPos_Right = m_pTransform->Get_State(CTransform::STATE_POSITION);
+	_float3 vScale = m_pTransform->Get_Scale();
+	if (m_vDoorLook == _float3(1.f, 0.f, 0.f))
+		m_pTransform->Set_State(CTransform::STATE_POSITION, m_vDoorPos + _float3(-0.4f, 0.f, 0.9f));
+	else
+		m_pTransform->Set_State(CTransform::STATE_POSITION, m_vDoorPos+_float3(0.9f,0.f,0.f));
+	m_pTransform->Set_Scale(_float3(3.6f, 3.f, 1.f));
+
+
+	if (FAILED(m_pTransform->Bind_WorldMatrix()))
+	{
+		MSG_BOX(TEXT("Failed to Bind_WorldMatrix : Render"));
+		return E_FAIL;
+	}
+	if (FAILED(m_pTextureCom1->Bind_Texture(0, 0)))
+	{
+		MSG_BOX(TEXT("Failed to Bind_Texture : Render"));
+		return E_FAIL;
+	}
+	if (FAILED(Set_RenderState()))
+	{
+		MSG_BOX(TEXT("Failed to Set_RenderState : Render"));
+		return E_FAIL;
+	}
+	if (FAILED(m_pVIBuffer_Com_Rect->Render()))
+	{
+		MSG_BOX(TEXT("Failed to Render : Render"));
+		return E_FAIL;
+	}
+	if (FAILED(Reset_RenderState()))
+	{
+		MSG_BOX(TEXT("Failed to Reset_RenderState : Render"));
+		return E_FAIL;
+	}
+	m_pTransform->Set_State(CTransform::STATE_POSITION, m_vDoorPos_Right);
+	m_pTransform->Set_Scale(vScale);
+
+	_float3 vPos = m_pTransform->Get_State(CTransform::STATE_POSITION);
+	_float3 vPos1 = m_pTransformLeftDoor->Get_State(CTransform::STATE_POSITION);
+	return S_OK;
+}
+
+void CTrigger_Door::Return_Look_Position(_float3* pvLook, _float3* pvPosition)
+{
+	*pvLook = m_pTransform->Get_State(CTransform::STATE_LOOK);
+	*pvPosition = m_pTransform->Get_State(CTransform::STATE_POSITION);
+}
+
+_float3 CTrigger_Door::Return_ViewPort_Pos()
+{
+	_float3 vPosition = m_pTransform->Get_State(CTransform::STATE_POSITION);
+
+	_float4x4 ViewMatrix, ProjectionMatrix;
+
+	m_pGraphic_Device->GetTransform(D3DTS_VIEW, &ViewMatrix);
+	m_pGraphic_Device->GetTransform(D3DTS_PROJECTION, &ProjectionMatrix);
+
+	vPosition = *D3DXVec3TransformCoord(&vPosition, &vPosition, &ViewMatrix);
+	vPosition = *D3DXVec3TransformCoord(&vPosition, &vPosition, &ProjectionMatrix);
+
+	vPosition.x = vPosition.x * g_iWinSizeX * 0.5f + g_iWinSizeX * 0.5f;
+	vPosition.y = vPosition.y * g_iWinSizeY * 0.5f + g_iWinSizeY * 0.5f;
+
+	return vPosition;
+}
+
+HRESULT CTrigger_Door::Add_Components()
+{	/* For.Com_VIBuffer */
+	if (FAILED(__super::Add_Component(LEVEL_STATIC, TEXT("Prototype_Component_VIBuffer_Cube"), TEXT("Com_VIBuffer"), reinterpret_cast<CComponent**>(&m_pVIBuffer_Com_RightDoor))))
+	{
+		MSG_BOX(TEXT("Failed to Prototype_Component_VIBuffer_Cube : Add_Components"));
+		return E_FAIL;
+	}
+	if (FAILED(__super::Add_Component(LEVEL_STATIC, TEXT("Prototype_Component_VIBuffer_Cube"), TEXT("Com_VIBuffer1"), reinterpret_cast<CComponent**>(&m_pVIBuffer_Com_LeftDoor))))
+	{
+		MSG_BOX(TEXT("Failed to Prototype_Component_VIBuffer_Cube : Add_Components"));
+		return E_FAIL;
+	}
+	if (FAILED(__super::Add_Component(LEVEL_STATIC, TEXT("Prototype_Component_VIBuffer_Rect"), TEXT("Com_VIBuffer2"), reinterpret_cast<CComponent**>(&m_pVIBuffer_Com_Rect))))
+	{
+		MSG_BOX(TEXT("Failed to Prototype_Component_VIBuffer_Rect : Add_Components"));
+		return E_FAIL;
+	}
+	/* For.Com_Texture */
+	if (FAILED(__super::Add_Component(g_eLevel, TEXT("Prototype_Component_Texture_Trigger_Door"), TEXT("Com_Texture"), reinterpret_cast<CComponent**>(&m_pTextureCom))))
+	{
+		MSG_BOX(TEXT("Failed to Prototype_Component_Texture_Trigger_Door : Add_Components"));
+		return E_FAIL;
+	}
+	if (FAILED(__super::Add_Component(g_eLevel, TEXT("Prototype_Component_Texture_Trigger_Door_In"), TEXT("Com_Texture1"), reinterpret_cast<CComponent**>(&m_pTextureCom1))))
+	{
+		MSG_BOX(TEXT("Failed to Prototype_Component_Texture_Trigger_Door : Add_Components"));
+		return E_FAIL;
+	}
+
+	//콜라이더 실험 BEGIN.
+	if (FAILED(__super::Add_Component(LEVEL_STATIC, TEXT("Prototype_Component_Collider_Sphere"), TEXT("Com_Collider_Sphere"), reinterpret_cast<CComponent**>(&m_pCollider_Com))))
+	{
+		MSG_BOX(TEXT("Failed to Prototype_Component_Collider_Sphere : Add_Components"));
+		return E_FAIL;
+	}
+	if (FAILED(__super::Add_Component(LEVEL_STATIC, TEXT("Prototype_Component_Collider_Sphere"), TEXT("Com_Collider_Sphere1"), reinterpret_cast<CComponent**>(&m_pCollider_Com1))))
+	{
+		MSG_BOX(TEXT("Failed to Prototype_Component_Collider_Sphere : Add_Components"));
+		return E_FAIL;
+	}
+	//콜라이더 실험 END.
+	return S_OK;
+}
+
+HRESULT CTrigger_Door::Set_RenderState()
+{
+	m_pGraphic_Device->SetRenderState(D3DRS_CULLMODE, D3DCULL_NONE);
+
+	if (FAILED(m_pGraphic_Device->SetRenderState(D3DRS_ALPHATESTENABLE, TRUE)))
+	{
+		MSG_BOX(TEXT("Failed to SetRenderState : D3DRS_ALPHATESTENABLE"));
+		return E_FAIL;
+	}
+	if (FAILED(m_pGraphic_Device->SetRenderState(D3DRS_ALPHAREF, 128)))
+	{
+		MSG_BOX(TEXT("Failed to SetRenderState : D3DRS_ALPHAREF"));
+		return E_FAIL;
+	}
+	if (FAILED(m_pGraphic_Device->SetRenderState(D3DRS_ALPHAFUNC, D3DCMP_GREATER)))
+	{
+		MSG_BOX(TEXT("Failed to SetRenderState : D3DRS_ALPHAFUNC"));
+		return E_FAIL;
+	}
+	return S_OK;
+}
+
+HRESULT CTrigger_Door::Reset_RenderState()
+{
+
+	m_pGraphic_Device->SetRenderState(D3DRS_CULLMODE, D3DCULL_CCW);
+	if (FAILED(m_pGraphic_Device->SetRenderState(D3DRS_ALPHATESTENABLE, FALSE)))
+	{
+		MSG_BOX(TEXT("Failed to SetRenderState : D3DRS_ALPHATESTENABLE"));
+		return E_FAIL;
+	}
+
+	return S_OK;
+}
+
+
+
+void CTrigger_Door::Collision_Player()
+{
+
+	CPlayer* pPlayer = dynamic_cast<CPlayer*>(m_pGameInstance->Get_Object(LEVEL_STATIC, TEXT("Layer_Player")));
+	if (nullptr == pPlayer)
+		return;
+
+	CCollider_Sphere* pPlayerCollider = dynamic_cast<CCollider_Sphere*>(pPlayer->Get_Component(TEXT("Com_Collider_Sphere")));
+	if (nullptr == pPlayerCollider)
+		return;
+
+	if (m_pGameInstance->Collision_Sphere(m_pCollider_Com1, pPlayerCollider))
+	{
+		m_bDoor = true;
+	}
+}
+
+
+
+CTrigger_Door* CTrigger_Door::Create(LPDIRECT3DDEVICE9 pGraphic_Device)
+{
+	CTrigger_Door* pInstance = new CTrigger_Door(pGraphic_Device);
+	if (FAILED(pInstance->Initialize_Prototype()))
+	{
+		MSG_BOX(TEXT("Faild to Created : CTrigger_Door"));
+
+		Safe_Release(pInstance);
+	}
+
+	return pInstance;
+}
+
+CGameObject* CTrigger_Door::Clone(void* pArg)
+{
+	CTrigger_Door* pInstance = new CTrigger_Door(*this);
+	if (FAILED(pInstance->Initialize(pArg)))
+	{
+		MSG_BOX(TEXT("Faild to Cloned : CTrigger_Door"));
+
+		Safe_Release(pInstance);
+	}
+
+	return pInstance;
+}
+
+void CTrigger_Door::Free()
+{
+	if (nullptr != m_pCamera)
+		m_pCamera->SetCameraShaking(false);
+
+	Safe_Release(m_pVIBuffer_Com_RightDoor);
+	Safe_Release(m_pVIBuffer_Com_LeftDoor);
+	Safe_Release(m_pVIBuffer_Com_Rect);
+	Safe_Release(m_pTextureCom);
+	Safe_Release(m_pTextureCom1);
+	Safe_Release(m_pTransformLeftDoor);
+
+	//콜라이더 실험 BEGIN
+	Safe_Release(m_pCollider_Com);
+	Safe_Release(m_pCollider_Com1);
+	//콜라이더 실험 END.
+	Safe_Release(m_pCamera);
+
+	__super::Free();
+}

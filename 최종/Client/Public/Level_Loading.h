@@ -1,0 +1,38 @@
+#pragma 
+#include "Level.h"
+#include "Client_Defines.h"
+
+
+BEGIN(Client)
+
+
+/* 1. 레벨에 필요한 객체들을 생성한다. */
+/* 2. 레벨을 반복적으로 갱신하여 화면에 보여준다. */
+/* 3. 다음레벨에대한 자원을 로드하기 위한 로더객체를 생성해준다.  */
+
+/* 다음 레벨에 자원을 로딩하는 로더 클래스를 인스턴스화 해줌. */
+class CLevel_Loading final : public CLevel
+{
+private:
+	CLevel_Loading(LPDIRECT3DDEVICE9 pGraphic_Device);
+	virtual ~CLevel_Loading() = default;
+
+
+public:
+	virtual HRESULT Initialize(LEVEL eNextLevelID) ;
+	virtual void Tick(_float fTimeDelta) override;
+	virtual HRESULT Render() override;
+
+private:
+	class	CLoader*	m_pLoader = { nullptr };
+	//class	CGameInstance* m_pGameInstance = { nullptr }; //레벨이 어차피 게임인스턴스를 들고 있음.
+	LEVEL				m_eNextLevelID = { LEVEL_END };
+	//LPDIRECT3DDEVICE9	m_pGraphic_Device = { nullptr }; //레벨이 들고 있음.
+	HRESULT Ready_Layer_BackGround(const wstring& strLayerTag);
+
+public:
+	static CLevel_Loading* Create(LPDIRECT3DDEVICE9 pGraphic_Device , LEVEL eNextLevelID);
+	virtual void Free() override;
+};
+
+END

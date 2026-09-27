@@ -1,0 +1,195 @@
+#include "pch.h"
+#include "UI_Damage.h"
+#include "GameInstance.h"
+
+CUI_Damage::CUI_Damage(LPDIRECT3DDEVICE9 pGraphic_Device) :
+	CUI_Base(pGraphic_Device)
+{
+}
+
+CUI_Damage::CUI_Damage(const CUI_Base& rhs) :
+	CUI_Base(rhs)
+{
+}
+
+HRESULT CUI_Damage::Initialize_Prototype()
+{
+	if (FAILED(__super::Initialize_Prototype()))
+	{
+		MSG_BOX(TEXT("Failed to Initialize_Prototype : __super,CUI_Base"));
+		return E_FAIL;
+	}
+
+	m_fX = 640;
+	m_fY = 360;
+	m_fSizeX = 0;
+	m_fSizeY = 0;
+	D3DXMatrixIdentity(&m_ViewMatrix);
+	D3DXMatrixIdentity(&m_ProjMatrix);
+	
+    return S_OK;
+}
+
+HRESULT CUI_Damage::Initialize(void* pArg)
+{
+	if (FAILED(__super::Initialize(pArg)))
+	{
+		MSG_BOX(TEXT("Failed to Initialize : __super,CUI_Base"));
+		return E_FAIL;
+	}
+
+	m_iCP = 10;
+	m_strFontTag = { TEXT("Font_gool1") };//폰트 태그
+	swprintf_s(m_szBuf, L"%d", m_iCP);
+	m_bDead = true;
+
+    return S_OK;
+}
+
+_uint CUI_Damage::Tick(_float fTimeDelta)
+{
+	if (m_bDead)
+		return OBJECT_NOTHING;
+
+	if (0 < m_fLifeTime)
+		m_fLifeTime -= fTimeDelta;
+
+	__super::Tick(fTimeDelta);
+
+    return OBJECT_NOTHING;
+}
+
+void CUI_Damage::Late_Tick(_float fTimeDelta)
+{
+	if (m_bDead)
+		return;
+
+	if (0 >= m_fLifeTime)
+		m_bDead = true;
+
+	__super::Late_Tick(fTimeDelta);
+	m_pGameInstance->Add_RenderObject(CRenderer::RENDER_UI, this);
+}
+
+HRESULT CUI_Damage::Render()
+{
+	if (!g_UI)
+		return S_OK;
+
+	if (m_bDead)
+		return S_OK;
+
+	if (FAILED(Set_RenderState()))
+		return E_FAIL;
+
+	m_pGameInstance->Render_Font(m_strFontTag, m_szBuf, &_float2(m_fX, m_fY - 50.f), D3DXCOLOR(1.f, 0.f, 0.f, 1.f));
+
+	if (FAILED(Reset_RenderState()))
+		return E_FAIL;
+
+    return S_OK;
+}
+
+void CUI_Damage::Hit_Damage(_float fCP, _float3 vViewPos)
+{
+	if (!m_bDead)//만약 살아있었으면 즉 지워지지 않았으면 더 해서 출력해주기.
+		m_iCP += _uint(fCP);
+	else
+		m_iCP = _uint(fCP);
+
+	swprintf_s(m_szBuf, L"%d", m_iCP);
+	// 공간 전환
+	m_fX = vViewPos.x;
+	m_fY = vViewPos.y + 10.f ;
+
+
+	Set_Life_Time();
+}
+
+void CUI_Damage::Set_Life_Time()
+{
+	m_fLifeTime = 1.f; 
+	m_bDead = false;
+}
+
+HRESULT CUI_Damage::Add_Components()
+{
+	/* For.Com_VIBuffer */
+	/*if (FAILED(__super::Add_Component(LEVEL_STATIC, TEXT("Prototype_Component_VIBuffer_Rect"),
+		TEXT("Com_VIBuffer"), (CComponent**)&m_pVIBufferCom)))
+		return E_FAIL;*/
+
+	/* For.Com_Texture */
+	/*if (FAILED(__super::Add_Component(g_eLevel, TEXT("Prototype_Component_Texture_UI_Sparrow0"),
+		TEXT("Com_Texture"), (CComponent**)&m_pTextureZoomUI0)))
+		return E_FAIL;*/
+
+    return S_OK;
+}
+
+HRESULT CUI_Damage::Set_RenderState(_ulong lAphaRef)
+{
+	m_pGraphic_Device->SetSamplerState(0, D3DSAMP_MINFILTER, D3DTEXF_POINT);
+	m_pGraphic_Device->SetSamplerState(0, D3DSAMP_MAGFILTER, D3DTEXF_POINT);
+	m_pGraphic_Device->SetSamplerState(0, D3DSAMP_MIPFILTER, D3DTEXF_POINT);
+	m_pGraphic_Device->SetRenderState(D3DRS_ALPHATESTENABLE, TRUE);
+	m_pGraphic_Device->SetRenderState(D3DRS_ALPHAREF, lAphaRef);
+	m_pGraphic_Device->SetRenderState(D3DRS_ALPHAFUNC, D3DCMP_GREATER);
+	m_pGraphic_Device->SetRenderState(D3DRS_ALPHABLENDENABLE, TRUE);
+	m_pGraphic_Device->SetRenderState(D3DRS_SRCBLEND, D3DBLEND_SRCALPHA);
+	m_pGraphic_Device->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA);
+	m_pGraphic_Device->SetRenderState(D3DRS_BLENDOP, D3DBLENDOP_ADD);
+
+	m_pGraphic_Device->SetRenderState(D3DRS_ZENABLE, FALSE);
+	m_pGraphic_Device->SetRenderState(D3DRS_ZWRITEENABLE, TRUE);
+	return S_OK;
+}
+
+HRESULT CUI_Damage::Reset_RenderState()
+{
+	m_pGraphic_Device->SetRenderState(D3DRS_ALPHABLENDENABLE, FALSE);
+
+	m_pGraphic_Device->SetSamplerState(0, D3DSAMP_MINFILTER, D3DTEXF_LINEAR);
+	m_pGraphic_Device->SetSamplerState(0, D3DSAMP_MAGFILTER, D3DTEXF_LINEAR);
+	m_pGraphic_Device->SetSamplerState(0, D3DSAMP_MIPFILTER, D3DTEXF_LINEAR);
+	m_pGraphic_Device->SetRenderState(D3DRS_ALPHATESTENABLE, FALSE);
+
+	m_pGraphic_Device->SetRenderState(D3DRS_ZENABLE, TRUE);
+	m_pGraphic_Device->SetRenderState(D3DRS_ZWRITEENABLE, TRUE);
+	return S_OK;
+}
+
+CUI_Damage* CUI_Damage::Create(LPDIRECT3DDEVICE9 pGraphic_Device)
+{
+	CUI_Damage* pInstance = new CUI_Damage(pGraphic_Device);
+
+	if (FAILED(pInstance->Initialize_Prototype()))
+	{
+		MSG_BOX(TEXT("Failed To Created : CUI_Damage"));
+
+		Safe_Release(pInstance);
+	}
+
+	return pInstance;
+}
+
+CGameObject* CUI_Damage::Clone(void* pArg)
+{
+	CUI_Damage* pInstance = new CUI_Damage(*this);
+
+	if (FAILED(pInstance->Initialize(pArg)))
+	{
+		MSG_BOX(TEXT("Failed To Cloned : CUI_Sparrow"));
+
+		Safe_Release(pInstance);
+	}
+
+	return pInstance;
+}
+
+void CUI_Damage::Free()
+{
+	m_pTextureCom = nullptr;
+
+	__super::Free();
+}

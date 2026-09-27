@@ -1,0 +1,52 @@
+#pragma once
+
+#pragma warning (disable : 4251)
+
+#include <d3d9.h>
+#include <d3dx9.h>
+
+#include <algorithm>
+#include <string>
+#include <vector>
+#include <list>
+#include <map>
+
+#include <tchar.h>
+
+#include "fmod.h"
+#include "fmod.hpp"
+#include "fmod_errors.h"
+
+#include <io.h>
+
+#pragma comment (lib, "fmod_vc.lib")
+
+using namespace std;
+
+namespace Engine {
+	const wstring g_strTransformTag = TEXT("Com_Transform");
+}
+
+#include "Engine_Macro.h"
+#include "Engine_Funtions.h"
+#include "Engine_Typedef.h"
+#include "Engine_Struct.h"
+
+using namespace Engine;
+
+#define		VK_MAX			0xff
+
+#ifdef _DEBUG
+
+#define _CRTDBG_MAP_ALLOC
+#include <stdlib.h>
+#include <crtdbg.h>
+
+#ifndef DBG_NEW 
+
+#define DBG_NEW new ( _NORMAL_BLOCK , __FILE__ , __LINE__ ) 
+#define new DBG_NEW 
+
+#endif
+
+#endif // _DEBUG

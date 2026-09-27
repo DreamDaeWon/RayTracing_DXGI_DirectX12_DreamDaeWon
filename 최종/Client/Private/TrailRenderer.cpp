@@ -1,0 +1,180 @@
+#include "pch.h"
+#include "GameInstance.h"
+#include "TrailRenderer.h"
+
+CTrailRenderer::CTrailRenderer(LPDIRECT3DDEVICE9 pGraphic_Device) :
+	CBlendObject(pGraphic_Device)
+{
+}
+
+CTrailRenderer::CTrailRenderer(const CTrailRenderer& rhs) :
+	CBlendObject(rhs)
+{
+}
+
+HRESULT CTrailRenderer::Initialize_Prototype()
+{
+	return S_OK;
+}
+
+HRESULT CTrailRenderer::Initialize(void* pArg)
+{
+	if (FAILED(__super::Initialize(pArg)))
+	{
+		MSG_BOX(TEXT("Failed to Initialize : CBullet"));
+		return E_FAIL;
+	}
+
+	if (FAILED(Add_Components()))
+	{
+		MSG_BOX(TEXT("Failed to Add_Components ,CBullet"));
+		return E_FAIL;
+	}
+
+	return S_OK;
+}
+
+_uint CTrailRenderer::Tick(_float fTimeDelta)
+{
+	if (0.f <= m_fLifeTime)
+		m_fLifeTime -= fTimeDelta;
+	return 0;
+}
+
+void CTrailRenderer::Late_Tick(_float fTimeDelta)
+{
+	if (m_fLifeTime < 0.f)
+		return;
+
+	//if(g_eLevel != LEVEL_1945)
+	//	m_pGameInstance->Add_RenderObject(CRenderer::RENDER_UI, this);
+	//else
+	//	m_pGameInstance->Add_RenderObject(CRenderer::RENDER_BLEND, this);
+
+	m_pGameInstance->Add_RenderObject(CRenderer::RENDER_UI, this);
+}
+
+HRESULT CTrailRenderer::Render()
+{
+	if (m_fLifeTime < 0.f)
+		return S_OK;
+
+	if (FAILED(m_pTransform->Bind_WorldMatrix()))
+	{
+		MSG_BOX(TEXT("Failed to Bind_WorldMatrix : Render"));
+		return E_FAIL;
+	}
+	if (FAILED(m_pTextureCom->Bind_Texture(0, 0)))
+	{
+		MSG_BOX(TEXT("Failed to Bind_Texture : Render"));
+		return E_FAIL;
+	}
+
+	if (FAILED(Set_RenderState()))
+	{
+		MSG_BOX(TEXT("Failed to Set_RenderState : Render"));
+		return E_FAIL;
+	}
+	if (FAILED(m_pVIBuffer_Com->Render()))
+	{
+		MSG_BOX(TEXT("Failed to Render : Render"));
+		return E_FAIL;
+	}
+	if (FAILED(Reset_RenderState()))
+	{
+		MSG_BOX(TEXT("Failed to Reset_RenderState : Render"));
+		return E_FAIL;
+	}
+
+
+	return S_OK;
+}
+
+void CTrailRenderer::Set_Pos_XScale_Rotation(_float3 vPos, _float fXScale, _float3 vDir)
+{
+	m_pTransform->Set_State(CTransform::STATE_POSITION, vPos);
+	_float3 vRight = *D3DXVec3Normalize(&vRight, &vDir);
+	_float3 vLook = { 0.f,-1.f,0.f };
+	_float3 vUp = *D3DXVec3Cross(&vUp, &vLook, &vRight);
+	D3DXVec3Normalize(&vUp, &vUp);
+	m_pTransform->Set_State(CTransform::STATE_RIGHT, vRight);
+	m_pTransform->Set_State(CTransform::STATE_UP, vUp);
+	m_pTransform->Set_State(CTransform::STATE_LOOK, vLook);
+	m_pTransform->Set_Scale(_float3(fXScale, 0.2f, 0.2f));
+	Set_LifeTime();
+}
+
+HRESULT CTrailRenderer::Add_Components()
+{
+	/* For.Com_VIBuffer */
+	if (FAILED(__super::Add_Component(LEVEL_STATIC, TEXT("Prototype_Component_VIBuffer_Rect"), TEXT("Com_VIBuffer"), reinterpret_cast<CComponent**>(&m_pVIBuffer_Com))))
+	{
+		MSG_BOX(TEXT("Failed to Prototype_Component_VIBuffer_Rect : Add_Components"));
+		return E_FAIL;
+	}
+
+	/* For.Com_Texture */
+	if (FAILED(__super::Add_Component(LEVEL_STATIC, TEXT("Prototype_Component_Texture_TrailRenderer"), TEXT("Com_Texture"), reinterpret_cast<CComponent**>(&m_pTextureCom))))
+	{
+		MSG_BOX(TEXT("Failed to Prototype_Component_Texture_TrailRenderer : Add_Components"));
+		return E_FAIL;
+	}
+	return S_OK;
+}
+
+HRESULT CTrailRenderer::Set_RenderState()
+{
+	m_pGraphic_Device->SetRenderState(D3DRS_CULLMODE, D3DCULL_NONE);
+	m_pGraphic_Device->SetRenderState(D3DRS_ALPHABLENDENABLE, TRUE);
+	m_pGraphic_Device->SetRenderState(D3DRS_SRCBLEND, D3DBLEND_SRCALPHA);
+	m_pGraphic_Device->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA);
+	m_pGraphic_Device->SetRenderState(D3DRS_BLENDOP, D3DBLENDOP_ADD);
+	/*m_pGraphic_Device->SetRenderState(D3DRS_ZENABLE, FALSE);
+	m_pGraphic_Device->SetRenderState(D3DRS_ZWRITEENABLE, FALSE);*/
+
+	return S_OK;
+}
+
+HRESULT CTrailRenderer::Reset_RenderState()
+{
+	m_pGraphic_Device->SetRenderState(D3DRS_CULLMODE, D3DCULL_CCW);
+	m_pGraphic_Device->SetRenderState(D3DRS_ALPHABLENDENABLE, FALSE);
+	/*m_pGraphic_Device->SetRenderState(D3DRS_ZENABLE, TRUE);
+	m_pGraphic_Device->SetRenderState(D3DRS_ZWRITEENABLE, TRUE);*/
+	return S_OK;
+}
+
+CTrailRenderer* CTrailRenderer::Create(LPDIRECT3DDEVICE9 pGraphic_Device)
+{
+	CTrailRenderer* pInstance = new CTrailRenderer(pGraphic_Device);
+
+	if (FAILED(pInstance->Initialize_Prototype()))
+	{
+		MSG_BOX(TEXT("Failed To Created : CTrailRenderer"));
+
+		Safe_Release(pInstance);
+	}
+
+	return pInstance;
+}
+
+CGameObject* CTrailRenderer::Clone(void* pArg)
+{
+	CTrailRenderer* pInstance = new CTrailRenderer(*this);
+
+	if (FAILED(pInstance->Initialize(pArg)))
+	{
+		MSG_BOX(TEXT("Failed To Cloned : CTrailRenderer"));
+
+		Safe_Release(pInstance);
+	}
+
+	return pInstance;
+}
+
+void CTrailRenderer::Free()
+{
+	Safe_Release(m_pTextureCom);
+	Safe_Release(m_pVIBuffer_Com);
+	__super::Free();
+}

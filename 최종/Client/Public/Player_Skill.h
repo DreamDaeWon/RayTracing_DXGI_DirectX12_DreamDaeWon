@@ -1,0 +1,66 @@
+#pragma once
+
+#include "GameObject.h"
+#include"Client_Defines.h"
+
+
+
+BEGIN(Client)
+class CPlayer_Skill abstract :  public CGameObject
+{
+public:
+	typedef struct tagSkill_Desc : public CGameObject::GAMEOBJECT_DESC {
+		class CTransform* pPlayerTransform = { nullptr };
+		_float3* pPlayerFrameLookVec = {nullptr};
+	}SKILL_DESC;
+protected:
+	enum SKILLID{ SKILL_ROLL, SKILL_SHIELD, SKILL_GRENADE, SKILL_DRONE, SKILL_END};
+public:
+	_uint Get_ID() { return m_eID; }
+	_float Get_CoolTime() { return m_fCoolTime; }
+	void Set_Activate(_bool bAct) { m_bActivate = bAct; }
+	_bool Get_Activate() { return m_bActivate; }
+	_bool Get_No() { return m_fActTime; }
+	void	Set_No(_bool bNo) { m_bNoSP = bNo; }
+	_float Get_SpendSp() { return m_fSP; }
+	_float Get_KeepSpendSp() { return m_fKeepSP; }
+protected:
+	CPlayer_Skill(LPDIRECT3DDEVICE9 pGraphic_Device);
+	CPlayer_Skill(const CPlayer_Skill& rhs);
+	virtual ~CPlayer_Skill() = default;
+
+public:
+	virtual HRESULT Initialize_Prototype() override;
+	virtual HRESULT Initialize(void* pArg) override;
+	virtual _uint Tick(_float fTimeDelta) override;
+	virtual void Late_Tick(_float fTimeDelta) override;
+	virtual HRESULT Render() override;
+
+	void Key_Input(_float fTimeDelta);
+
+protected:
+	virtual HRESULT Add_Components() PURE;
+	virtual HRESULT Set_RenderState();
+	virtual HRESULT Reset_RenderState();
+
+protected:
+	//텍스쳐와 버퍼가 필요없는 객체가 
+	//class CTexture; => 각각의 스킬에서 구현
+	//class CVIBuffer_Sphere; => 각각의 스킬에서 구현
+	//
+	_bool					m_bNoSP = { false };
+	_bool					m_bActivate = { false };
+	SKILLID					m_eID = {}; // 스킬 ID
+	_float					m_fCoolTime = {0.f};
+	_float					m_fSP = {0.f};
+	_float					m_fKeepSP = {0};
+	_float					m_fActTime = { 0.f };
+	_float					m_fTime = { 0.f };
+	_float					m_fScale = { 0.f };		// 스케일 값 : 준수 추가
+	_float3*				m_pPlayerFrameLookVec = { nullptr };
+	class CTransform*		m_pPlayerTransform = { nullptr };
+public:
+	virtual CGameObject* Clone(void* pArg) =0;
+	virtual void Free() override;
+};
+END
