@@ -1,18 +1,28 @@
-static const float PI = 3.14159265359;
+﻿static const float PI = 3.14159265359;
 static const float EPS = 0.001;
 struct Object { float4 centerRadius; float4 extentsType; float4 rotation; uint4 material; };
-struct Material { float4 color; float4 emission; float4 parameters; };
+
+struct Material { 
+    float4 color;      // 기본 색상 (Base Color RGB)
+    float4 emission;   // 발광 색상(RGB) 및 발광 강도(W Intensity)
+    float4 parameters; // x: 거칠기(Roughness), 
+                       // y: 금속성(Metallic), 
+                       // z: 굴절률(IOR), 
+                       // w: 투명도(Transmission)
+};
+
 Texture2D<float4> Previous : register(t0);
 StructuredBuffer<Object> Objects : register(t1);
 StructuredBuffer<Material> Materials : register(t2);
-RWTexture2D<float4> Output : register(u0);
-RWTexture2D<float4> NoisyColor : register(u1);
-RWTexture2D<float4> DiffuseAlbedo : register(u2);
-RWTexture2D<float4> SpecularAlbedo : register(u3);
-RWTexture2D<float4> NormalRoughness : register(u4);
-RWTexture2D<float> ViewDepth : register(u5);
-RWTexture2D<float2> MotionVectors : register(u6);
-RWTexture2D<float> SpecularHitDistance : register(u7);
+// DLSS 3.5 Ray Reconstruction 입력 7대 물리 가이드 버퍼
+RWTexture2D<float4> Output              : register(u0); // Full GI 누적 프레임 버퍼
+RWTexture2D<float4> NoisyColor          : register(u1); // 1 SPP 노이즈 원본
+RWTexture2D<float4> DiffuseAlbedo       : register(u2); // 물체 기본 색상
+RWTexture2D<float4> SpecularAlbedo      : register(u3); // 표면 반사 색상
+RWTexture2D<float4> NormalRoughness     : register(u4); // 표면 법선 벡터 + 거칠기
+RWTexture2D<float>  ViewDepth           : register(u5); // 카메라 선형 깊이
+RWTexture2D<float2> MotionVectors       : register(u6); // 카메라 이동 모션 벡터
+RWTexture2D<float>  SpecularHitDistance : register(u7); // 2차 반사 광선 도달 거리
 cbuffer Constants : register(b0) {
     float4 CameraPosition, CameraForward, CameraRight, CameraUp;
     uint4 Dimensions; // width, height, history frame index, independent RNG sequence
